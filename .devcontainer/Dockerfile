@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
     libsqlite3-dev libncursesw5-dev xz-utils tk-dev libxml2-dev \
     libxmlsec1-dev libffi-dev liblzma-dev \
-    curl wget jq shellcheck tmux flock \
+    curl wget jq shellcheck tmux util-linux gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # === Node.js ===
@@ -42,7 +42,14 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dea
     && apt-get update && apt-get install -y google-cloud-cli \
     && rm -rf /var/lib/apt/lists/*
 
-# === Switch to non-root user ===
+# === Create workspace directory (as root, before user switch) ===
+RUN mkdir -p /workspace && chown vscode:vscode /workspace
+
+# === Entrypoint (UID remapping at runtime) ===
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# === Switch to non-root user for pyenv/pip installs ===
 USER vscode
 
 # === pyenv + Python (as vscode user) ===
@@ -55,6 +62,9 @@ RUN pyenv install ${PYTHON_VERSION} && pyenv global ${PYTHON_VERSION}
 RUN pip install --no-cache-dir pre-commit
 
 # === Workspace setup ===
-RUN mkdir -p /workspace
 ENV PATH="/workspace/.venv/bin:${PATH}"
 WORKDIR /workspace
+
+# Run entrypoint as root (it will drop to vscode after UID fix)
+USER root
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
