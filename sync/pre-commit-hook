@@ -1,0 +1,62 @@
+#!/bin/bash
+# BladeAI shared pre-commit hook - secret scanner
+# Blocks commits containing passwords, API keys, private keys, tokens
+# Install: git config core.hooksPath ~/.githooks (or symlink)
+
+set -e
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+# Patterns that should NEVER be committed
+PATTERNS=(
+    # Private keys
+    'PRIVATE KEY'
+    'BEGIN RSA'
+    'BEGIN EC PRIVATE'
+    'BEGIN DSA'
+    # Common credential patterns
+    'password\s*[:=]\s*["\x27][^P][^L][^A]'  # password= but not PLACEHOLDER
+    'secret\s*[:=]\s*["\x27][^P][^L][^A]'
+    'api[_-]?key\s*[:=]\s*["\x27][^P][^L][^A]'
+    # Specific BladeAI secrets — loaded from .env at install time
+    # (see setup-dev-machine.sh for how these are populated)
+    # ADD_PROJECT_SPECIFIC_PATTERNS_HERE
+    # Base64-encoded subscription content (proxy URIs)
+    'vmess://'
+    'vless://'
+    # Telegram bot tokens (numeric:alphanumeric pattern)
+    '[0-9]{8,}:AA[A-Za-z0-9_-]{30,}'
+)
+
+FOUND=0
+FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [ -z "$FILES" ]; then
+    exit 0
+fi
+
+for pattern in "${PATTERNS[@]}"; do
+    # Search staged content only
+    matches=$(git diff --cached -U0 | grep -iP "$pattern" 2>/dev/null | head -5) || true
+    if [ -n "$matches" ]; then
+        if [ $FOUND -eq 0 ]; then
+            echo -e "${RED}[SECRET SCAN] Potential secrets detected in staged changes:${NC}"
+        fi
+        FOUND=$((FOUND + 1))
+        echo -e "${RED}  Pattern: $pattern${NC}"
+        echo "$matches" | head -3 | sed 's/^/    /'
+        echo ""
+    fi
+done
+
+if [ $FOUND -gt 0 ]; then
+    echo -e "${RED}Commit blocked! $FOUND secret pattern(s) found.${NC}"
+    echo "If these are intentional (e.g. PLACEHOLDER values), use:"
+    echo "  git commit --no-verify"
+    exit 1
+fi
+
+echo -e "${GREEN}[SECRET SCAN] Clean - no secrets detected${NC}"
+exit 0
