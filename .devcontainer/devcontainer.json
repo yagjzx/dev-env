@@ -1,60 +1,14 @@
 {
     "name": "BladeAI Dev",
-    "build": {
-        "dockerfile": "Dockerfile"
-    },
+    "dockerComposeFile": "docker-compose.yml",
+    "service": "dev",
+    "workspaceFolder": "/workspace",
 
-    // --- Workspace ---
-    "workspaceMount": "source=${localWorkspaceFolder}/..,target=/home/vscode/workspace,type=bind",
-    "workspaceFolder": "/home/vscode/workspace",
-
-    // --- Features (lightweight additions) ---
     "features": {
-        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
-        "ghcr.io/devcontainers/features/git:1": { "version": "latest" }
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
     },
 
-    // --- SSH agent forwarding (use host SSH keys for VPS access + GitHub) ---
-    "mounts": [
-        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly",
-        "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind"
-    ],
-
-    // --- Environment ---
-    "containerEnv": {
-        "PYTHONDONTWRITEBYTECODE": "1",
-        "PIP_DISABLE_PIP_VERSION_CHECK": "1"
-    },
-
-    // --- Post-create: install packages, hooks, SSH config ---
-    "postCreateCommand": "bash /home/vscode/workspace/dev-env/.devcontainer/post-create.sh",
-
-    // --- VS Code settings ---
-    "customizations": {
-        "vscode": {
-            "settings": {
-                "python.defaultInterpreterPath": "/home/vscode/workspace/.venv/bin/python",
-                "python.terminal.activateEnvironment": true,
-                "terminal.integrated.defaultProfile.linux": "bash",
-                "[python]": {
-                    "editor.defaultFormatter": "charliermarsh.ruff"
-                }
-            },
-            "extensions": [
-                "ms-python.python",
-                "ms-python.vscode-pylance",
-                "charliermarsh.ruff",
-                "mhutchie.git-graph",
-                "eamodio.gitlens",
-                "timonwong.shellcheck",
-                "redhat.vscode-yaml",
-                "ms-azuretools.vscode-docker"
-            ]
-        }
-    },
-
-    // --- Forwarded ports (for local dev servers if needed) ---
-    "forwardPorts": [],
+    "postCreateCommand": "bash /workspace/dev-env/.devcontainer/post-create.sh",
 
     "remoteUser": "vscode"
 }

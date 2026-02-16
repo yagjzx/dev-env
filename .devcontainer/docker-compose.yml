@@ -1,0 +1,60 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bladeai-dev
+    stdin_open: true
+    tty: true
+    volumes:
+      # Workspace (all 13 repos, bind-mounted from host)
+      - ${WORKSPACE:-~/workspace}:/workspace:cached
+      # SSH agent forwarding (Linux host)
+      - ${SSH_AUTH_SOCK:-/dev/null}:/tmp/ssh-agent.sock
+      # SSH config (host aliases, known_hosts) — read-only
+      - ~/.ssh/config:/home/vscode/.ssh/config:ro
+      - ~/.ssh/known_hosts:/home/vscode/.ssh/known_hosts:ro
+      # GitHub CLI auth
+      - ~/.config/gh:/home/vscode/.config/gh
+      # gcloud auth
+      - ~/.config/gcloud:/home/vscode/.config/gcloud
+      # Git config — read-only
+      - ~/.gitconfig:/home/vscode/.gitconfig:ro
+      # Persistent named volumes (survive container rebuilds)
+      - bladeai-venv:/workspace/.venv
+      - bladeai-history:/commandhistory
+      - bladeai-uv-cache:/home/vscode/.cache/uv
+      - bladeai-claude:/home/vscode/.claude
+    environment:
+      SSH_AUTH_SOCK: /tmp/ssh-agent.sock
+      HISTFILE: /commandhistory/.bash_history
+      PROMPT_COMMAND: "history -a"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      UV_CACHE_DIR: /home/vscode/.cache/uv
+    working_dir: /workspace
+
+  git-sync:
+    image: alpine/git:latest
+    container_name: bladeai-git-sync
+    restart: unless-stopped
+    volumes:
+      - ${WORKSPACE:-~/workspace}:/workspace
+      - ~/.ssh/id_ed25519:/root/.ssh/id_ed25519:ro
+      - ~/.ssh/known_hosts:/root/.ssh/known_hosts:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add --no-cache curl openssh-client bash flock > /dev/null 2>&1
+        chmod 600 /root/.ssh/id_ed25519
+        echo "[git-sync] Started. Syncing every 5 minutes."
+        while true; do
+          bash /workspace/dev-env/sync/git-sync.sh 2>&1
+          sleep 300
+        done
+
+volumes:
+  bladeai-venv:
+  bladeai-history:
+  bladeai-uv-cache:
+  bladeai-claude:

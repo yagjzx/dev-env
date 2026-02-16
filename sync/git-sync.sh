@@ -1,6 +1,6 @@
 #!/bin/bash
 # BladeAI workspace auto-sync daemon
-# Runs every 5 minutes via cron/systemd
+# Runs every 5 minutes via docker-compose sidecar or host cron
 # For each repo: fetch remote, auto-pull if clean, alert if conflicts
 #
 # Logic:
@@ -12,9 +12,25 @@
 
 set -euo pipefail
 
-WORKSPACE="/home/simba/workspace"
-LOG="/home/simba/workspace/.sync/sync.log"
-# Load credentials from workspace .env or bladeai .env
+# Auto-detect container vs host environment
+if [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null; then
+    WORKSPACE="/workspace"
+else
+    WORKSPACE="${WORKSPACE:-$HOME/workspace}"
+fi
+
+LOCKFILE="$WORKSPACE/.sync/git-sync.lock"
+LOG="$WORKSPACE/.sync/sync.log"
+
+# Prevent concurrent runs
+mkdir -p "$(dirname "$LOCKFILE")"
+exec 200>"$LOCKFILE"
+if ! flock -n 200; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Another git-sync is already running, skipping"
+    exit 0
+fi
+
+# Load Telegram credentials
 ENV_FILE="$WORKSPACE/bladeai/.env"
 if [ -f "$ENV_FILE" ]; then
     TG_BOT_TOKEN=$(grep '^TG_BOT_TOKEN=' "$ENV_FILE" | cut -d= -f2- | tr -d '"')
@@ -30,10 +46,12 @@ REPOS=(bladeai dev-env clawforce crypto-backtest quant-backtest quant-lab ntws
     ai-expert-monitor whisper-vocab)
 
 log() {
+    mkdir -p "$(dirname "$LOG")"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG"
 }
 
 notify() {
+    [ -z "$TG_BOT_TOKEN" ] && return
     local msg="🔄 *Git Sync ($HOSTNAME)*\n$1"
     curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
         -d chat_id="$TG_CHAT_ID" \

@@ -1,77 +1,66 @@
 #!/bin/bash
-# DevContainer post-create setup
-# Runs once after container is created
+# BladeAI DevContainer post-create setup
+# Runs once after container is created (idempotent)
 
 set -euo pipefail
 
-WORKSPACE="/home/vscode/workspace"
-HOOKS_DIR="$WORKSPACE/.githooks"
+WORKSPACE="/workspace"
 VENV="$WORKSPACE/.venv"
+PRE_COMMIT_CONFIG="$WORKSPACE/dev-env/.pre-commit-config.yaml"
+
+REPOS=(bladeai dev-env clawforce crypto-backtest quant-backtest quant-lab ntws
+    longxia-market ig-recruit-radar xai-radar claude-memory
+    ai-expert-monitor whisper-vocab)
 
 echo "=== BladeAI DevContainer post-create ==="
 
-# 1. Install Python packages from all repos' requirements.txt
-if [ -f "$VENV/bin/pip" ]; then
-    for req in "$WORKSPACE"/*/requirements.txt; do
-        [ -f "$req" ] || continue
-        repo=$(basename "$(dirname "$req")")
-        echo "Installing packages from $repo..."
-        "$VENV/bin/pip" install -q -r "$req" 2>/dev/null || echo "  Warning: some packages from $repo failed"
+# 1. Create workspace venv (idempotent — only if not already present)
+if [ ! -f "$VENV/bin/python" ]; then
+    echo "Creating workspace .venv..."
+    python3 -m venv "$VENV"
+fi
+
+# 2. Install pre-commit hooks for all repos
+if [ -f "$PRE_COMMIT_CONFIG" ] && command -v pre-commit >/dev/null 2>&1; then
+    for repo in "${REPOS[@]}"; do
+        dir="$WORKSPACE/$repo"
+        [ -d "$dir/.git" ] || continue
+        # Copy shared config if repo doesn't have its own
+        if [ ! -f "$dir/.pre-commit-config.yaml" ]; then
+            cp "$PRE_COMMIT_CONFIG" "$dir/.pre-commit-config.yaml"
+        fi
+        (cd "$dir" && pre-commit install --allow-missing-config) 2>/dev/null || true
     done
-    echo "Total packages: $("$VENV/bin/pip" list 2>/dev/null | wc -l)"
+    echo "Pre-commit hooks installed for all repos"
 fi
 
-# 2. Set up pre-commit hooks for all repos
-mkdir -p "$HOOKS_DIR"
-if [ -f "$WORKSPACE/dev-env/sync/pre-commit-hook" ]; then
-    cp "$WORKSPACE/dev-env/sync/pre-commit-hook" "$HOOKS_DIR/pre-commit"
-    chmod +x "$HOOKS_DIR/pre-commit"
+# 3. SSH config: use host-mounted config, don't overwrite
+if [ -f "$HOME/.ssh/config" ]; then
+    echo "SSH config: using host-mounted config (read-only)"
+else
+    echo "SSH config: not found (mount ~/.ssh/config from host)"
 fi
 
-for dir in "$WORKSPACE"/*/; do
-    [ -d "$dir/.git" ] && git -C "$dir" config core.hooksPath "$HOOKS_DIR"
-done
-
-# 3. SSH config for VPS hosts (if not already mounted)
-if [ ! -f "$HOME/.ssh/config" ] || ! grep -q 'hk-panel' "$HOME/.ssh/config" 2>/dev/null; then
-    mkdir -p "$HOME/.ssh"
-    chmod 700 "$HOME/.ssh"
-    cat >> "$HOME/.ssh/config" << 'SSHCONF'
-
-# === BladeAI VPS ===
-Host hk-panel
-  HostName 35.220.168.96
-  User simba
-
-Host jp-dmit
-  HostName 154.12.190.176
-  User root
-
-Host sg-proxy
-  HostName 45.32.122.209
-  User root
-
-Host us-dmit
-  HostName 64.186.227.36
-  User root
-
-Host us-gateway
-  HostName 100.88.122.17
-  User simba
-
-Host dev-vm-tokyo
-  HostName 100.67.53.22
-  User simba
-
-Host mac-mini
-  HostName 100.77.47.23
-  User ob
-SSHCONF
+# 4. Git credential helper via gh
+if command -v gh >/dev/null 2>&1; then
+    gh auth setup-git 2>/dev/null || true
 fi
 
+# 5. Shell history directory
+mkdir -p /commandhistory
+touch /commandhistory/.bash_history
+
+# 6. Environment summary
+echo ""
 echo "=== DevContainer ready ==="
-echo "  Python: $(python3 --version)"
-echo "  venv:   $("$VENV/bin/python" --version)"
-echo "  git:    $(git --version)"
-echo "  gh:     $(gh --version | head -1)"
-echo "  node:   $(node --version)"
+echo "  Python:    $(python3 --version)"
+echo "  Node:      $(node --version)"
+echo "  gh:        $(gh --version 2>/dev/null | head -1 || echo 'N/A')"
+echo "  gcloud:    $(gcloud --version 2>/dev/null | head -1 || echo 'N/A')"
+echo "  uv:        $(uv --version 2>/dev/null || echo 'N/A')"
+echo "  gitleaks:  $(gitleaks version 2>/dev/null || echo 'N/A')"
+echo "  claude:    $(claude --version 2>/dev/null || echo 'N/A')"
+echo "  pre-commit: $(pre-commit --version 2>/dev/null || echo 'N/A')"
+echo "  Workspace: $WORKSPACE"
+echo "  Repos:     ${#REPOS[@]}"
+echo ""

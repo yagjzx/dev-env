@@ -7,18 +7,21 @@ ARG GITLEAKS_VERSION=8.30.0
 ARG UV_VERSION=0.10.3
 ARG GH_VERSION=2.86.0
 
-# === System deps for pyenv Python build ===
+# === System deps for pyenv Python build + utilities ===
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
     libsqlite3-dev libncursesw5-dev xz-utils tk-dev libxml2-dev \
     libxmlsec1-dev libffi-dev liblzma-dev \
-    curl wget jq shellcheck \
+    curl wget jq shellcheck tmux flock \
     && rm -rf /var/lib/apt/lists/*
 
 # === Node.js ===
 RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
+
+# === Claude Code ===
+RUN npm install -g @anthropic-ai/claude-code
 
 # === gh CLI ===
 RUN curl -fsSL https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.deb -o /tmp/gh.deb \
@@ -48,6 +51,10 @@ ENV PYENV_ROOT="/home/vscode/.pyenv"
 ENV PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
 RUN pyenv install ${PYTHON_VERSION} && pyenv global ${PYTHON_VERSION}
 
-# === Workspace venv ===
-RUN python3 -m venv /home/vscode/workspace/.venv
-ENV PATH="/home/vscode/workspace/.venv/bin:${PATH}"
+# === pre-commit framework ===
+RUN pip install --no-cache-dir pre-commit
+
+# === Workspace setup ===
+RUN mkdir -p /workspace
+ENV PATH="/workspace/.venv/bin:${PATH}"
+WORKDIR /workspace

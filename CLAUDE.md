@@ -1,33 +1,41 @@
 # dev-env — Claude Code 项目指令
 
 ## 项目概览
-开发机环境管理仓库。管理 4 台开发机（iMac、MacBook Pro、Mac Mini、Tokyo VM）的工具链、shell 配置、DevContainer 和自动同步。
+全容器化开发环境管理仓库。Thin Host + Fat Container 策略：宿主机只有 Docker + SSH，所有开发工具封装在 DevContainer 中。
+
+## 架构
+```
+HOST (极简): Docker + SSH + ~/workspace/ (13 repos)
+CONTAINER dev: Python 3.12.12, Node 22, gh, uv, gitleaks, gcloud, Claude Code, pre-commit
+CONTAINER git-sync: Alpine + git, 每 5 分钟自动同步, restart: unless-stopped
+```
 
 ## 目录约定
-- `.devcontainer/` — VS Code DevContainer 配置（Dockerfile + post-create 脚本）
-- `sync/` — 环境部署与同步脚本
-  - `setup-dev-machine.sh` — 新机器一键部署（macOS + Linux）
-  - `git-sync.sh` — 自动 fetch/pull 守护进程（launchd/cron）
-  - `pre-commit-hook` — gitleaks 密钥扫描 hook
-  - `zprofile-template-macos` — macOS 标准 .zprofile
-  - `profile-template-linux` — Linux 标准 .profile 追加块
+- `.devcontainer/` — DevContainer 配置 (Dockerfile + docker-compose + post-create)
+- `.pre-commit-config.yaml` — 共享 pre-commit hooks (gitleaks + 基础检查)
+- `sync/` — 同步与部署脚本
+  - `setup-thin-host.sh` — 新机器 bootstrap（只装 Docker + 创建 dev wrapper）
+  - `git-sync.sh` — 自动 fetch/pull 守护进程（容器 sidecar 或宿主 cron）
 - `docs/` — 开发机审计框架
 
-## 工具链版本基线
+## 工具链版本基线 (全部在容器内)
 | 工具 | 版本 |
 |------|------|
 | Python | 3.12.12 (via pyenv) |
-| Git | 2.53.0 |
-| Node | v25.6.1 |
+| Node | 22 (LTS) |
 | gh | 2.86.0 |
 | uv | 0.10.3 |
 | gitleaks | 8.30.0 |
-| gcloud | 556.0.0 |
+| gcloud | latest |
+| Claude Code | latest |
+| pre-commit | latest |
 
 ## 关键规则
-- **所有机器必须通过 `setup-dev-machine.sh` 部署**，禁止手动装工具
-- **pyenv init 必须在 .zprofile（macOS）或 .profile（Linux）中**，不能只放 .zshrc
-- **pre-commit hook 统一通过 `core.hooksPath` 共享**，不要逐 repo 复制
+- **宿主机只装 Docker + SSH**，严禁安装 Python/Node/gh 等开发工具
+- **环境一致性由 Docker 镜像保证**，不是 shell 脚本
+- **pre-commit hooks 通过 `pre-commit install` 在容器内配置**，不用 core.hooksPath
+- **SSH config 由宿主机挂载 (read-only)**，post-create.sh 不写入
+- **各项目依赖由项目自管理** (uv run)，不装进共享 venv
 - **git-sync 的 REPOS 列表必须包含所有 13 个 repo**
 
 ## 13 个仓库
@@ -35,5 +43,11 @@ bladeai, dev-env, clawforce (heydoraai org), crypto-backtest, quant-backtest, qu
 
 ## 新机器部署
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/yagjzx/dev-env/main/sync/setup-dev-machine.sh)
+bash ~/workspace/dev-env/sync/setup-thin-host.sh
+```
+
+## 进入开发环境
+```bash
+dev                                    # wrapper 命令
+docker exec -it bladeai-dev bash       # 或直接 docker exec
 ```
