@@ -2,8 +2,9 @@ FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
 
 # === Pinned versions (update these to stay aligned with host) ===
 ARG PYTHON_VERSION=3.12.12
-ARG NODE_MAJOR=22
+ARG NODE_MAJOR=25
 ARG GITLEAKS_VERSION=8.30.0
+ARG RUST_VERSION=1.93.0
 ARG UV_VERSION=0.10.3
 ARG GH_VERSION=2.86.0
 ARG GO_VERSION=1.25.7
@@ -73,39 +74,52 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # ============================================================
-# Layer 7: pyenv + Python (~329MB, changes on version bump only)
-# Switch to vscode user for all remaining operations
+# Layer 7: Rust toolchain (~800MB, rarely changes)
+# Installed system-wide (root) to avoid UID-remapping chown issues
 # ============================================================
-USER vscode
-RUN curl -sS https://pyenv.run | bash
-ENV PYENV_ROOT="/home/vscode/.pyenv"
-ENV PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
-RUN pyenv install ${PYTHON_VERSION} && pyenv global ${PYTHON_VERSION}
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH="/usr/local/cargo/bin:${PATH}"
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+      | sh -s -- -y --default-toolchain ${RUST_VERSION} --no-modify-path \
+    && chmod -R a+rX /usr/local/rustup /usr/local/cargo
 
 # ============================================================
-# Layer 8: Python core packages (~500MB, most frequently updated)
-# COPY requirements-base.txt first for cache-friendly rebuilds
+# Layer 8: pyenv + Python (~329MB, changes on version bump only)
+# Installed to /opt/pyenv (system-wide) to avoid UID-remapping chown delay
+# ============================================================
+ENV PYENV_ROOT=/opt/pyenv
+ENV PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
+RUN curl -sS https://pyenv.run | bash \
+    && pyenv install ${PYTHON_VERSION} \
+    && pyenv global ${PYTHON_VERSION} \
+    && chmod -R a+rX /opt/pyenv
+
+# ============================================================
+# Layer 9: Python core packages (~500MB, most frequently updated)
+# All system-wide installs as root (pyenv in /opt is root-owned)
 # ============================================================
 COPY requirements-base.txt /tmp/requirements-base.txt
 RUN pip install --no-cache-dir -r /tmp/requirements-base.txt
 
 # ============================================================
-# Layer 9: Playwright Chromium browser (~622MB)
-# Must come after pip install playwright. Only chromium to save space.
+# Layer 10: Playwright Chromium browser (~622MB)
+# Install as vscode so browsers go to vscode's cache dir
 # ============================================================
+USER vscode
+ENV PLAYWRIGHT_BROWSERS_PATH=/home/vscode/.cache/ms-playwright
 RUN playwright install chromium
 
 # ============================================================
-# Layer 10: pre-commit framework (~15MB)
+# Layer 11: pre-commit framework (~15MB)
 # ============================================================
-RUN pip install --no-cache-dir pre-commit
+USER root
+RUN pip install --no-cache-dir pre-commit \
+    && chmod -R a+rX /opt/pyenv
 
 # ============================================================
 # Final: PATH + workspace setup
 # ============================================================
 ENV PATH="/workspace/.venv/bin:${PATH}"
 WORKDIR /workspace
-
-# Run entrypoint as root (it will drop to vscode after UID fix)
-USER root
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
