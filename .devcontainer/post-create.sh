@@ -14,9 +14,16 @@ REPOS=(bladeai dev-env clawforce crypto-backtest quant-backtest quant-lab ntws
 
 echo "=== BladeAI DevContainer post-create ==="
 
-# 1. Create workspace venv with system-site-packages (so it sees Dockerfile-baked packages)
-if [ ! -e "$VENV/bin/python" ]; then
-    echo "Creating workspace .venv (with system-site-packages)..."
+# 1. Create/repair workspace venv with system-site-packages
+# The venv must point to the current pyenv Python (/opt/pyenv/...).
+# After a Dockerfile rebuild that moves pyenv, the named volume venv
+# may still reference the old path — detect and recreate if needed.
+EXPECTED_HOME="$(python3 -c 'import sys, os; print(os.path.dirname(sys.executable))')"
+CURRENT_HOME="$(grep '^home' "$VENV/pyvenv.cfg" 2>/dev/null | cut -d= -f2 | tr -d ' ')"
+
+if [ ! -e "$VENV/bin/python" ] || [ "$CURRENT_HOME" != "$EXPECTED_HOME" ]; then
+    echo "Creating workspace .venv (home=$EXPECTED_HOME)..."
+    rm -rf "$VENV"/* "$VENV"/.* 2>/dev/null || true
     python3 -m venv --system-site-packages "$VENV"
 elif ! grep -q "include-system-site-packages = true" "$VENV/pyvenv.cfg" 2>/dev/null; then
     echo "Upgrading .venv to include system-site-packages..."
