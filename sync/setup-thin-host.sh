@@ -73,8 +73,25 @@ fi
 mkdir -p "$HOME/bin"
 cat > "$HOME/bin/dev" << 'WRAPPER'
 #!/bin/bash
-# Enter the BladeAI dev container
-exec docker exec -it bladeai-dev bash
+# Enter bladeai-dev container as vscode user
+# Usage: dev [command]
+#   dev          — interactive bash shell
+#   dev command  — run command and exit
+
+CONTAINER="bladeai-dev"
+USER="vscode"
+
+if ! docker inspect "$CONTAINER" &>/dev/null; then
+    echo "Container $CONTAINER not running. Start with:"
+    echo "  cd ~/workspace/dev-env/.devcontainer && docker compose up -d"
+    exit 1
+fi
+
+if [ $# -eq 0 ]; then
+    exec docker exec -it -u "$USER" "$CONTAINER" bash
+else
+    exec docker exec -u "$USER" "$CONTAINER" "$@"
+fi
 WRAPPER
 chmod +x "$HOME/bin/dev"
 
