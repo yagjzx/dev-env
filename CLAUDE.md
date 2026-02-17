@@ -33,10 +33,12 @@ CONTAINER git-sync: Alpine + git, 每 5 分钟自动同步, restart: unless-stop
 ## 关键规则
 - **宿主机只装 Docker + SSH**，严禁安装 Python/Node/gh 等开发工具
 - **环境一致性由 Docker 镜像保证**，不是 shell 脚本
-- **pre-commit hooks 通过 `pre-commit install` 在容器内配置**，不用 core.hooksPath
+- **Git hooks 双环境分离**: 宿主机用 global `core.hooksPath` (简单 gitleaks)，容器用 per-repo `pre-commit install`
+- **Host gitconfig 挂载到 `.gitconfig-host` (read-only)**，不是 `.gitconfig`，避免 core.hooksPath 冲突
 - **SSH config 由宿主机挂载 (read-only)**，post-create.sh 不写入
 - **各项目依赖由项目自管理** (uv run)，不装进共享 venv
 - **git-sync 的 REPOS 列表必须包含所有 13 个 repo**
+- **`.devcontainer/.env` 不入 git** — 机器特定 HOST_UID/HOST_GID，用 `.env.example` 作模板
 
 ## 13 个仓库
 bladeai, dev-env, clawforce (heydoraai org), crypto-backtest, quant-backtest, quant-lab, ntws, longxia-market, ig-recruit-radar, xai-radar, claude-memory, ai-expert-monitor, whisper-vocab
@@ -48,6 +50,7 @@ bash ~/workspace/dev-env/sync/setup-thin-host.sh
 
 ## 进入开发环境
 ```bash
-dev                                    # wrapper 命令
-docker exec -it bladeai-dev bash       # 或直接 docker exec
+dev                                    # interactive shell as vscode
+dev python3 --version                  # run command in container
+docker exec -it -u vscode bladeai-dev bash  # 或直接 docker exec
 ```
