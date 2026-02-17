@@ -55,9 +55,10 @@ services:
         git config --global --add safe.directory '*'
         git config --global credential.https://github.com.helper '!/usr/local/bin/gh auth git-credential'
         git config --global credential.https://gist.github.com.helper '!/usr/local/bin/gh auth git-credential'
-        # Install gh CLI for HTTPS credential helper
-        curl -sL "https://github.com/cli/cli/releases/download/v2.86.0/gh_2.86.0_linux_amd64.tar.gz" \
-          | tar xz -C /tmp && cp /tmp/gh_2.86.0_linux_amd64/bin/gh /usr/local/bin/
+        # Install gh CLI for HTTPS credential helper ($$=escape for compose)
+        ARCH=$$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+        curl -sL "https://github.com/cli/cli/releases/download/v2.86.0/gh_2.86.0_linux_$${ARCH}.tar.gz" \
+          | tar xz -C /tmp && cp /tmp/gh_2.86.0_linux_$${ARCH}/bin/gh /usr/local/bin/
         # Verify gh auth before first sync (use gh auth token — gh auth status
         # exits non-zero when hosts.yml has a stale entry even if GH_TOKEN works)
         if gh auth token >/dev/null 2>&1; then

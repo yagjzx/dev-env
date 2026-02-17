@@ -42,7 +42,8 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
 # ============================================================
 # Layer 3: Go (~243MB, rarely changes)
 # ============================================================
-RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
+RUN ARCH=$(dpkg --print-architecture) \
+    && curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" \
       | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:${PATH}"
 
@@ -57,10 +58,13 @@ RUN npm install -g @anthropic-ai/claude-code pm2
 # ============================================================
 # Layer 5: Binary tools — gh, gitleaks, uv (~117MB)
 # ============================================================
-RUN curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.deb" \
+RUN ARCH=$(dpkg --print-architecture) \
+    && curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${ARCH}.deb" \
       -o /tmp/gh.deb && dpkg -i /tmp/gh.deb && rm /tmp/gh.deb
 
-RUN curl -sL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+RUN ARCH=$(dpkg --print-architecture) \
+    && GL_ARCH=$([ "$ARCH" = "amd64" ] && echo "x64" || echo "arm64") \
+    && curl -sL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${GL_ARCH}.tar.gz" \
       | tar xz -C /usr/local/bin gitleaks && chmod +x /usr/local/bin/gitleaks
 
 RUN curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" \
