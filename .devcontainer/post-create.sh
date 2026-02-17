@@ -19,7 +19,7 @@ echo "=== BladeAI DevContainer post-create ==="
 # After a Dockerfile rebuild that moves pyenv, the named volume venv
 # may still reference the old path — detect and recreate if needed.
 EXPECTED_HOME="$(python3 -c 'import sys, os; print(os.path.dirname(sys.executable))')"
-CURRENT_HOME="$(grep '^home' "$VENV/pyvenv.cfg" 2>/dev/null | cut -d= -f2 | tr -d ' ')"
+CURRENT_HOME="$(grep '^home' "$VENV/pyvenv.cfg" 2>/dev/null | cut -d= -f2 | tr -d ' ' || true)"
 
 if [ ! -e "$VENV/bin/python" ] || [ "$CURRENT_HOME" != "$EXPECTED_HOME" ]; then
     echo "Creating workspace .venv (home=$EXPECTED_HOME)..."
