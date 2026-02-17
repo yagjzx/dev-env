@@ -71,14 +71,58 @@ pyenv 在 `/opt/pyenv` (root) → `pip install` 也要以 root 运行
 docker-compose 挂载的 `:ro` 文件 (`.ssh/config`, `.gitconfig-host`) 不能 chown
 当前 entrypoint 逐目录 chown, 跳过 `.ssh` 和 `.gitconfig-host`
 
-## 新机器部署
+## 首次部署容器 (用户说"把容器跑起来"时执行这个)
+
+**前提条件** (部署前检查，缺哪个报给用户):
+- [ ] Docker 已安装且在运行 (`docker info`)
+- [ ] `~/workspace/` 目录存在，里面有 13 个 repo (至少有 `dev-env/`)
+- [ ] `gh auth status` 已登录 GitHub
+- [ ] `~/.ssh/config` 存在 (有 SSH aliases)
+- [ ] `~/.gitconfig` 存在 (有 user.name/email)
+
+**部署步骤** (按顺序执行):
+```bash
+# Step 1: 确保必要文件存在 (Docker bind mount 缺文件会创建空目录导致错误)
+touch ~/.ssh/known_hosts 2>/dev/null
+mkdir -p ~/.config/gcloud 2>/dev/null
+
+# Step 2: 创建 .env (UID 重映射，macOS 通常是 501, Linux 通常是 1000+)
+cd ~/workspace/dev-env/.devcontainer
+printf "HOST_UID=%s\nHOST_GID=%s\n" "$(id -u)" "$(id -g)" > .env
+
+# Step 3: Build 镜像 (首次约 10-15 分钟，含下载)
+docker compose build dev
+
+# Step 4: 启动两个容器
+docker compose up -d
+
+# Step 5: 等 entrypoint UID 重映射完成，然后运行 post-create
+sleep 10
+docker exec -u vscode bladeai-dev bash /workspace/dev-env/.devcontainer/post-create.sh
+
+# Step 6: 验证
+docker exec -u vscode bladeai-dev bash -c '
+  echo "Python:  $(python3 --version)"
+  echo "Node:    $(node --version)"
+  echo "Rust:    $(rustc --version)"
+  echo "Go:      $(go version)"
+  echo "pm2:     $(pm2 --version 2>/dev/null | tail -1)"
+  python3 -c "import pandas, numpy, httpx, pydantic; print(\"Packages: OK\")"
+'
+```
+
+**验证通过标准**: Python 3.12.12, Node v25.x, Rust 1.93.0, Go 1.25.7, Packages OK
+
+**macOS 注意事项**:
+- Docker Desktop 需要在 Settings → Resources 里分配足够内存 (建议 8GB+, 镜像 8.65GB)
+- 首次 build 比 Linux 慢 (Docker Desktop 虚拟化开销)
+- `SSH_AUTH_SOCK` 如果用 1Password SSH Agent, 路径不同 — 容器内 SSH 功能可能受限, 但 git 用 HTTPS (gh credential helper) 不受影响
+
+## 完整重新部署 (新机器从零开始)
 前提: gh auth login + 13 repos 已克隆到 ~/workspace/ + ~/.ssh/config 已配置
 ```bash
 bash ~/workspace/dev-env/sync/setup-thin-host.sh
-# 部署后一次性操作:
-echo "HOST_UID=$(id -u)\nHOST_GID=$(id -g)" > ~/workspace/dev-env/.devcontainer/.env  # uid≠1000 时
-docker exec bladeai-dev chown -R vscode:vscode /workspace/.venv /commandhistory
-docker exec -u vscode bladeai-dev bash /workspace/dev-env/.devcontainer/post-create.sh
+# 然后按上面"首次部署容器"步骤执行
 ```
 
 ## 13 个仓库
