@@ -43,9 +43,9 @@
 | Tool | Host | Container | Match? |
 |------|------|-----------|--------|
 | Python | 3.12.3 (pyenv 3.12.12) | 3.12.12 (pyenv) | ✅ |
-| Node | v25.6.1 (nvm) | v22.22.0 (NodeSource) | ⚠️ 版本差 |
+| Node | v25.6.1 (nvm) | v25.6.1 (NodeSource) | ✅ |
 | Go | 1.25.7 | 1.25.7 | ✅ |
-| Rust | 1.93.0 | 未安装 | ❌ 设计决定 |
+| Rust | 1.93.0 | 1.93.0 (system-wide) | ✅ |
 | Docker | 29.2.1 | N/A (宿主机专属) | N/A |
 | Docker Compose | 5.0.2 | N/A | N/A |
 | gcloud | 556.0.0 | 556.0.0 | ✅ |
@@ -174,8 +174,6 @@ core.hookspath=/home/simba/workspace/.githooks
 | 项目特定包 (fastapi/duckdb/backtrader/streamlit/matplotlib/yfinance/uvicorn) | ✅ 7/7 OK |
 
 ## 已知差异 (设计决定,非缺陷)
-1. **Node 版本**: 宿主机 v25.6.1 (nvm), 容器 v22.22.0 (NodeSource) — 容器用 LTS
-2. **Rust**: 宿主机有, 容器无 — 13 个 repo 无 .rs 文件, 不需要
-3. **Conda quant**: 宿主机有 159 包 (ML/Jupyter), 容器无 — Phase 2
-4. **Docker CLI**: 宿主机有, 容器无 — 不需要容器内套容器
-5. **Tailscale**: 宿主机有, 容器无 — 网络基础设施, 非开发工具
+1. **Conda quant**: 宿主机有 159 包 (ML/Jupyter), 容器无 — Phase 2
+2. **Docker CLI**: 宿主机有, 容器无 — 不需要容器内套容器
+3. **Tailscale**: 宿主机有, 容器无 — 网络基础设施, 非开发工具
