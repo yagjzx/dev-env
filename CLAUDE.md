@@ -23,7 +23,7 @@ docker logs bladeai-git-sync --tail 5
 ## 架构
 ```
 宿主机 (Thin Host): Docker + SSH + ~/workspace/ (13 repos)
-  ├─ bladeai-dev 容器: Python 3.12, Node 22, gh, uv, gitleaks, gcloud, Claude Code, pre-commit, tmux
+  ├─ bladeai-dev 容器: Python 3.12.12, Node 25, Go 1.25.7, Rust 1.93.0, gh, uv, gitleaks, gcloud, Claude Code, pre-commit, tmux, pm2, vim, Playwright+Chromium
   └─ bladeai-git-sync 容器: 每5分钟自动同步 13 repos, Telegram 告警
 ```
 
@@ -39,6 +39,37 @@ docker logs bladeai-git-sync --tail 5
 - **Host gitconfig 挂载到 `.gitconfig-host:ro`**（不是 `.gitconfig`），避免 core.hooksPath 冲突
 - **Git hooks 双环境**: 宿主机用 global `core.hooksPath` (简单 gitleaks)，容器用 per-repo `pre-commit install`
 - **named volume 首次创建后需 chown**: `docker exec bladeai-dev chown -R vscode:vscode /workspace/.venv /commandhistory`
+
+## Dockerfile 防护规则 (血泪教训!)
+
+### 规则 1: 文件多的工具必须装到系统目录
+**错误做法**: `USER vscode` → `RUN curl pyenv.run | bash` → 装到 `~/.pyenv` (5万+文件)
+**正确做法**: 装到 `/opt/pyenv` 或 `/usr/local/` (root 拥有, `chmod -R a+rX`)
+
+**原因**: entrypoint 做 UID 重映射 (1000→1001) 后要 `chown -R /home/vscode`。
+pyenv (~5万文件) + Rust (~5万文件) 在用户目录时, chown 要 77-120 秒。
+更糟的是, read-only bind mounts (.ssh, .gitconfig-host) 会导致 chown 报错中断。
+
+**当前正确位置**:
+| 工具 | 位置 | 原因 |
+|------|------|------|
+| pyenv + Python | `/opt/pyenv` | 文件多, 系统级避免 chown |
+| Rust + Cargo | `/usr/local/rustup` + `/usr/local/cargo` | 同上 |
+| Go | `/usr/local/go` | 标准做法 |
+| Node/npm | `/usr/bin` + `/usr/lib` | NodeSource apt 安装 |
+| Playwright 浏览器 | `/home/vscode/.cache/ms-playwright` | 文件少, USER vscode 安装 |
+
+### 规则 2: pip install 跟 pyenv 在同一 USER 下
+pyenv 在 `/opt/pyenv` (root) → `pip install` 也要以 root 运行
+否则 pip 会 fallback 到 `--user` 装到 `~/.local/`, 不跟 pyenv 一起
+
+### 规则 3: COPY 的文件 vscode 不能删
+`COPY requirements.txt /tmp/` 以 root 创建 → `USER vscode` 后 `rm /tmp/requirements.txt` 会失败
+解决: 不删, 或在 root 阶段删
+
+### 规则 4: entrypoint chown 必须跳过 read-only mounts
+docker-compose 挂载的 `:ro` 文件 (`.ssh/config`, `.gitconfig-host`) 不能 chown
+当前 entrypoint 逐目录 chown, 跳过 `.ssh` 和 `.gitconfig-host`
 
 ## 新机器部署
 前提: gh auth login + 13 repos 已克隆到 ~/workspace/ + ~/.ssh/config 已配置
