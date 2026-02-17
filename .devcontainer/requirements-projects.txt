@@ -1,0 +1,12 @@
+# BladeAI DevContainer — Project-specific Python packages
+# Installed by post-create.sh into /workspace/.venv (named volume)
+# Each line references a repo's requirements.txt
+# Missing repos are skipped gracefully by post-create.sh
+
+-r /workspace/xai-radar/requirements.txt
+-r /workspace/ig-recruit-radar/requirements.txt
+-r /workspace/crypto-backtest/requirements.txt
+-r /workspace/quant-backtest/requirements.txt
+-r /workspace/quant-lab/requirements.txt
+-r /workspace/clawforce/requirements.txt
+-r /workspace/longxia-market/scripts/requirements.txt

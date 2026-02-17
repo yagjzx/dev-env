@@ -35,6 +35,7 @@ services:
       PYTHONDONTWRITEBYTECODE: "1"
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
       UV_CACHE_DIR: /home/vscode/.cache/uv
+      PLAYWRIGHT_BROWSERS_PATH: /home/vscode/.cache/ms-playwright
     working_dir: /workspace
 
   git-sync:
