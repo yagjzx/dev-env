@@ -64,7 +64,8 @@ if [ -f "$PRE_COMMIT_CONFIG" ] && command -v pre-commit >/dev/null 2>&1; then
         if [ ! -f "$dir/.pre-commit-config.yaml" ]; then
             cp "$PRE_COMMIT_CONFIG" "$dir/.pre-commit-config.yaml"
         fi
-        (cd "$dir" && pre-commit install --allow-missing-config) 2>/dev/null || true
+        # Unset host core.hooksPath (bind-mounted .git/config may carry host paths)
+        (cd "$dir" && git config --unset-all core.hooksPath 2>/dev/null; pre-commit install --allow-missing-config) 2>/dev/null || true
     done
     echo "Pre-commit hooks installed for all repos"
 fi

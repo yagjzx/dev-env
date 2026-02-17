@@ -86,9 +86,9 @@ docker-compose 挂载的 `:ro` 文件 (`.ssh/config`, `.gitconfig-host`) 不能 
 touch ~/.ssh/known_hosts 2>/dev/null
 mkdir -p ~/.config/gcloud 2>/dev/null
 
-# Step 2: 创建 .env (UID 重映射，macOS 通常是 501, Linux 通常是 1000+)
+# Step 2: 创建 .env (UID 重映射 + GH_TOKEN for macOS keyring workaround)
 cd ~/workspace/dev-env/.devcontainer
-printf "HOST_UID=%s\nHOST_GID=%s\n" "$(id -u)" "$(id -g)" > .env
+printf "HOST_UID=%s\nHOST_GID=%s\nGH_TOKEN=%s\n" "$(id -u)" "$(id -g)" "$(gh auth token)" > .env
 
 # Step 3: Build 镜像 (首次约 10-15 分钟，含下载)
 docker compose build dev

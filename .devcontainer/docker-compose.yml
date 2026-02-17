@@ -36,6 +36,7 @@ services:
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
       UV_CACHE_DIR: /home/vscode/.cache/uv
       PLAYWRIGHT_BROWSERS_PATH: /home/vscode/.cache/ms-playwright
+      GH_TOKEN: "${GH_TOKEN}"
     working_dir: /workspace
 
   git-sync:
@@ -45,6 +46,8 @@ services:
     volumes:
       - ${WORKSPACE:-~/workspace}:/workspace
       - ~/.config/gh:/root/.config/gh:ro
+    environment:
+      GH_TOKEN: "${GH_TOKEN}"
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -55,8 +58,9 @@ services:
         # Install gh CLI for HTTPS credential helper
         curl -sL "https://github.com/cli/cli/releases/download/v2.86.0/gh_2.86.0_linux_amd64.tar.gz" \
           | tar xz -C /tmp && cp /tmp/gh_2.86.0_linux_amd64/bin/gh /usr/local/bin/
-        # Verify gh auth before first sync
-        if gh auth status >/dev/null 2>&1; then
+        # Verify gh auth before first sync (use gh auth token — gh auth status
+        # exits non-zero when hosts.yml has a stale entry even if GH_TOKEN works)
+        if gh auth token >/dev/null 2>&1; then
           echo "[git-sync] gh auth: OK"
         else
           echo "[git-sync] WARNING: gh auth failed — syncs may fail"
