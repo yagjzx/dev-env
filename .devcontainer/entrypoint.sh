@@ -22,6 +22,9 @@ if [ "$HOST_UID" != "$CURRENT_UID" ] || [ "$HOST_GID" != "$CURRENT_GID" ]; then
     chown "$HOST_UID:$HOST_GID" /workspace 2>/dev/null || true
 fi
 
+# Named volumes are created as root — always fix ownership regardless of UID remap
+chown -R "$(id -u vscode):$(id -g vscode)" /workspace/.venv /commandhistory 2>/dev/null || true
+
 # If args provided, exec them as vscode; otherwise sleep forever
 if [ $# -gt 0 ]; then
     exec gosu vscode "$@"
