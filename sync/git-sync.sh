@@ -22,11 +22,14 @@ fi
 LOCKFILE="$WORKSPACE/.sync/git-sync.lock"
 LOG="$WORKSPACE/.sync/sync.log"
 
-# Prevent concurrent runs
+# Prevent concurrent runs (container=root, host=user — handle cross-user lock)
 mkdir -p "$(dirname "$LOCKFILE")"
+if [ -f "$LOCKFILE" ] && [ ! -w "$LOCKFILE" ]; then
+    rm -f "$LOCKFILE" 2>/dev/null || true
+fi
 exec 200>"$LOCKFILE"
 if ! flock -n 200; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Another git-sync is already running, skipping"
+    echo "[git-sync] Another instance running, skipping"
     exit 0
 fi
 
@@ -65,28 +68,36 @@ if [ -f "$LOG" ] && [ "$(wc -l < "$LOG" 2>/dev/null)" -gt 500 ]; then
     tail -200 "$LOG" > "${LOG}.tmp" && mv "${LOG}.tmp" "$LOG"
 fi
 
+# Counters for cycle summary (printed to stdout for docker logs)
+_ok=0 _pulled=0 _errors=0 _dirty=0 _ahead=0 _diverged=0 _skipped=0
+
 for repo in "${REPOS[@]}"; do
     dir="$WORKSPACE/$repo"
 
     # Skip if not a git repo
-    [ -d "$dir/.git" ] || continue
+    if [ ! -d "$dir/.git" ]; then
+        _skipped=$((_skipped+1))
+        continue
+    fi
 
     # Fetch remote
     if ! git -C "$dir" fetch origin 2>/dev/null; then
         log "$repo: fetch failed (network?)"
+        _errors=$((_errors+1))
         continue
     fi
 
     # Get branch name
-    branch=$(git -C "$dir" symbolic-ref --short HEAD 2>/dev/null) || continue
+    branch=$(git -C "$dir" symbolic-ref --short HEAD 2>/dev/null) || { _skipped=$((_skipped+1)); continue; }
 
     # Compare local vs remote
-    local_ref=$(git -C "$dir" rev-parse "$branch" 2>/dev/null) || continue
-    remote_ref=$(git -C "$dir" rev-parse "origin/$branch" 2>/dev/null) || continue
-    base_ref=$(git -C "$dir" merge-base "$branch" "origin/$branch" 2>/dev/null) || continue
+    local_ref=$(git -C "$dir" rev-parse "$branch" 2>/dev/null) || { _skipped=$((_skipped+1)); continue; }
+    remote_ref=$(git -C "$dir" rev-parse "origin/$branch" 2>/dev/null) || { _skipped=$((_skipped+1)); continue; }
+    base_ref=$(git -C "$dir" merge-base "$branch" "origin/$branch" 2>/dev/null) || { _skipped=$((_skipped+1)); continue; }
 
     if [ "$local_ref" = "$remote_ref" ]; then
         # Up to date - nothing to do
+        _ok=$((_ok+1))
         continue
     fi
 
@@ -104,23 +115,39 @@ for repo in "${REPOS[@]}"; do
                 commits=$(git -C "$dir" log --oneline "${local_ref}..${remote_ref}" | wc -l)
                 log "$repo: auto-pulled $commits new commit(s)"
                 notify "✅ \`$repo\`: auto-pulled $commits commit(s)"
+                _pulled=$((_pulled+1))
             else
                 log "$repo: pull failed (non-fast-forward?)"
                 notify "⚠️ \`$repo\`: pull failed, needs manual merge"
+                _errors=$((_errors+1))
             fi
         else
             # Dirty working tree - can't auto-pull
             log "$repo: behind remote but has uncommitted changes"
             notify "⚠️ \`$repo\`: remote has new commits but local has uncommitted changes.\nRun: \`cd $dir && git stash && git pull && git stash pop\`"
+            _dirty=$((_dirty+1))
         fi
     elif [ "$remote_ref" = "$base_ref" ]; then
         # Local is ahead - user hasn't pushed yet
         commits=$(git -C "$dir" log --oneline "${remote_ref}..${local_ref}" | wc -l)
         log "$repo: $commits unpushed commit(s)"
         # Don't alert for this - user will push when ready
+        _ahead=$((_ahead+1))
     else
         # Diverged - needs manual resolution
         log "$repo: DIVERGED from remote - needs manual merge"
         notify "🔴 \`$repo\`: local and remote have diverged!\nRun: \`cd $dir && git pull --rebase\`"
+        _diverged=$((_diverged+1))
     fi
 done
+
+# Print cycle summary to stdout (visible in docker logs)
+_ts=$(date '+%Y-%m-%d %H:%M:%S')
+_summary="[git-sync] $_ts — ${#REPOS[@]} repos: ${_ok} ok"
+[ $_pulled -gt 0 ]  && _summary+=", $_pulled pulled"
+[ $_errors -gt 0 ]  && _summary+=", $_errors errors"
+[ $_dirty -gt 0 ]   && _summary+=", $_dirty dirty"
+[ $_ahead -gt 0 ]   && _summary+=", $_ahead ahead"
+[ $_diverged -gt 0 ] && _summary+=", $_diverged diverged"
+[ $_skipped -gt 0 ] && _summary+=", $_skipped skipped"
+echo "$_summary"
