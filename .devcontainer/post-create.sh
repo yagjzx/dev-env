@@ -15,7 +15,7 @@ REPOS=(bladeai dev-env clawforce crypto-backtest quant-backtest quant-lab ntws
 echo "=== BladeAI DevContainer post-create ==="
 
 # 1. Create workspace venv (idempotent — only if not already present)
-if [ ! -f "$VENV/bin/python" ]; then
+if [ ! -e "$VENV/bin/python" ]; then
     echo "Creating workspace .venv..."
     python3 -m venv "$VENV"
 fi
@@ -41,14 +41,24 @@ else
     echo "SSH config: not found (mount ~/.ssh/config from host)"
 fi
 
-# 4. Git credential helper via gh
+# 4. Git config: import user identity from host, set up credential helper
+# Host gitconfig is mounted at ~/.gitconfig-host (read-only) to avoid
+# inheriting core.hooksPath which conflicts with pre-commit install
+HOST_GITCONFIG="$HOME/.gitconfig-host"
+if [ -f "$HOST_GITCONFIG" ]; then
+    user_name=$(git config -f "$HOST_GITCONFIG" user.name 2>/dev/null || true)
+    user_email=$(git config -f "$HOST_GITCONFIG" user.email 2>/dev/null || true)
+    [ -n "$user_name" ] && git config --global user.name "$user_name"
+    [ -n "$user_email" ] && git config --global user.email "$user_email"
+fi
 if command -v gh >/dev/null 2>&1; then
     gh auth setup-git 2>/dev/null || true
 fi
 
-# 5. Shell history directory
-mkdir -p /commandhistory
-touch /commandhistory/.bash_history
+# 5. Shell history directory (may need root — skip if permission denied)
+if [ -w /commandhistory ] || mkdir -p /commandhistory 2>/dev/null; then
+    touch /commandhistory/.bash_history 2>/dev/null || true
+fi
 
 # 6. Environment summary
 echo ""

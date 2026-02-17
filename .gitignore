@@ -1,0 +1,18 @@
+# Machine-specific environment (HOST_UID/HOST_GID)
+.devcontainer/.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+.idea/
+.vscode/

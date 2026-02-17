@@ -18,8 +18,9 @@ services:
       - ~/.config/gh:/home/vscode/.config/gh
       # gcloud auth
       - ~/.config/gcloud:/home/vscode/.config/gcloud
-      # Git config — read-only
-      - ~/.gitconfig:/home/vscode/.gitconfig:ro
+      # Git config: NOT mounted — set up in post-create.sh instead
+      # Host gitconfig has core.hooksPath which conflicts with pre-commit install
+      - ~/.gitconfig:/home/vscode/.gitconfig-host:ro
       # Persistent named volumes (survive container rebuilds)
       - bladeai-venv:/workspace/.venv
       - bladeai-history:/commandhistory
