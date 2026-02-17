@@ -71,6 +71,23 @@ pyenv 在 `/opt/pyenv` (root) → `pip install` 也要以 root 运行
 docker-compose 挂载的 `:ro` 文件 (`.ssh/config`, `.gitconfig-host`) 不能 chown
 当前 entrypoint 逐目录 chown, 跳过 `.ssh` 和 `.gitconfig-host`
 
+### 规则 5: macOS Keychain token 进不了 Linux 容器
+`~/.config/gh/hosts.yml` 在 macOS 上只是指向 Keychain 的引用，不含真 token。
+挂载 `~/.config/gh` 进容器没用 — 必须通过 `GH_TOKEN` 环境变量显式传入。
+当前方案: `.env` 里 `GH_TOKEN=$(gh auth token)`，docker-compose 传给两个容器。
+
+### 规则 6: core.hooksPath 有两层，不只全局
+- **全局** `~/.gitconfig` 的 `core.hooksPath` → 已通过挂载为 `.gitconfig-host:ro` 绕过
+- **每个 repo** 的 `.git/config` 里也可能有 `core.hooksPath` → 通过 workspace bind mount 带进容器
+- post-create.sh 在 `pre-commit install` 前必须先 `git config --unset-all core.hooksPath`
+
+### 规则 7: 写部署指南必须模拟执行，不能凭记忆
+写操作手册时，必须沿执行路径逐步推演"每一步在目标机器上实际会发生什么"。
+不能只在当前机器上验证通过就算完。重点检查:
+- 凭证存储差异 (Keychain vs 文件 vs 环境变量)
+- 路径差异 (macOS /Users vs Linux /home, UID 501 vs 1000+)
+- bind mount 带入的宿主机配置 (不只是显式挂载的文件，还有 .git/config 等隐式内容)
+
 ## 首次部署容器 (用户说"把容器跑起来"时执行这个)
 
 **前提条件** (部署前检查，缺哪个报给用户):
