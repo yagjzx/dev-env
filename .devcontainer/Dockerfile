@@ -53,7 +53,10 @@ ENV PATH="/usr/local/go/bin:${PATH}"
 RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
-RUN npm install -g @anthropic-ai/claude-code pm2
+RUN npm install -g pm2
+RUN curl -fsSL https://claude.ai/install.sh | bash \
+    && cp /root/.local/bin/claude /usr/local/bin/claude \
+    && chmod 755 /usr/local/bin/claude
 
 # ============================================================
 # Layer 5: Binary tools — gh, gitleaks, uv (~117MB)
