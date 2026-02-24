@@ -44,7 +44,8 @@ else
 fi
 HOSTNAME=$(hostname -s)
 
-REPOS=(bladeai dev-env clawforce crypto-backtest quant-backtest quant-lab ntws
+REPOS=(bladeai dev-env clawforce clawforce-v2 clawforce-lobster-fleet seedforge gtm-engine
+    crypto-backtest quant-backtest quant-lab ntws
     longxia-market ig-recruit-radar xai-radar claude-memory
     ai-expert-monitor whisper-vocab)
 

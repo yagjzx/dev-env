@@ -142,5 +142,5 @@ bash ~/workspace/dev-env/sync/setup-thin-host.sh
 # 然后按上面"首次部署容器"步骤执行
 ```
 
-## 13 个仓库
-bladeai, dev-env, clawforce (heydoraai org), crypto-backtest, quant-backtest, quant-lab, ntws, longxia-market, ig-recruit-radar, xai-radar, claude-memory, ai-expert-monitor, whisper-vocab
+## 17 个仓库
+bladeai, dev-env, clawforce (V1 废弃), clawforce-v2, clawforce-lobster-fleet, seedforge, gtm-engine (以上4个在 heydoraai org), crypto-backtest, quant-backtest, quant-lab, ntws, longxia-market, ig-recruit-radar, xai-radar, claude-memory, ai-expert-monitor, whisper-vocab
