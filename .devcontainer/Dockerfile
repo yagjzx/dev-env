@@ -5,9 +5,9 @@ ARG PYTHON_VERSION=3.12.12
 ARG NODE_MAJOR=25
 ARG GITLEAKS_VERSION=8.30.0
 ARG RUST_VERSION=1.93.0
-ARG UV_VERSION=0.10.3
-ARG GH_VERSION=2.86.0
-ARG GO_VERSION=1.25.7
+ARG UV_VERSION=0.10.6
+ARG GH_VERSION=2.87.3
+ARG GO_VERSION=1.26.0
 
 # ============================================================
 # Layer 1: System deps + Playwright system libs + vim (~350MB)
