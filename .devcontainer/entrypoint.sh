@@ -23,7 +23,19 @@ if [ "$HOST_UID" != "$CURRENT_UID" ] || [ "$HOST_GID" != "$CURRENT_GID" ]; then
 fi
 
 # Named volumes are created as root — always fix ownership regardless of UID remap
-chown -R "$(id -u vscode):$(id -g vscode)" /workspace/.venv /commandhistory 2>/dev/null || true
+for d in \
+    /workspace/.venv \
+    /commandhistory \
+    /workspace/clawforce/web/node_modules \
+    /workspace/clawforce/desktop/node_modules \
+    /workspace/clawforce/sdk-js/node_modules \
+    /workspace/clawforce-admin/web/node_modules \
+    /workspace/clawforce-lobster-fleet/clawforce-plugin/node_modules \
+    /workspace/clawforce-lobster-fleet/dashboard-lobster/node_modules \
+    /workspace/seedforge/dashboard-admin/node_modules
+do
+    chown -R "$(id -u vscode):$(id -g vscode)" "$d" 2>/dev/null || true
+done
 
 # If args provided, exec them as vscode; otherwise sleep forever
 if [ $# -gt 0 ]; then

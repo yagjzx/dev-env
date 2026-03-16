@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsqlite3-dev libncursesw5-dev xz-utils tk-dev libxml2-dev \
     libxmlsec1-dev libffi-dev liblzma-dev \
     # Utilities
-    curl wget jq shellcheck tmux util-linux gosu vim \
+    curl wget jq shellcheck tmux util-linux gosu vim ripgrep \
     # Playwright Chromium system dependencies (Ubuntu 24.04)
     libasound2t64 libatk-bridge2.0-0t64 libatk1.0-0t64 \
     libatspi2.0-0t64 libcairo2 libcups2t64 libdbus-1-3 \

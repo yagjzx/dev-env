@@ -1,6 +1,6 @@
-# BladeAI DevContainer — Core Python packages (baked into Docker image)
-# These survive container rebuilds. Update versions to match host ~/venv.
-# Project-specific packages go in requirements-projects.txt (installed to .venv)
+# BladeAI DevContainer - Core Python packages (baked into Docker image)
+# These survive container rebuilds. Keep this layer to broadly shared tools.
+# Project overlays in post-create.sh add repo-specific dependencies into /workspace/.venv.
 
 # === AI/LLM APIs ===
 google-genai>=1.63.0
@@ -21,7 +21,7 @@ twscrape>=0.17.0
 
 # === Data & Networking ===
 ccxt>=4.5.0
-pandas>=3.0.0
+pandas>=2.3.0
 numpy>=2.4.0
 scipy>=1.17.0
 httpx>=0.28.0

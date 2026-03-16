@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: bladeai-dev
     restart: unless-stopped
+    init: true
     stdin_open: true
     tty: true
     volumes:
@@ -24,6 +25,13 @@ services:
       - ~/.gitconfig:/home/vscode/.gitconfig-host:ro
       # Persistent named volumes (survive container rebuilds)
       - bladeai-venv:/workspace/.venv
+      - bladeai-clawforce-web-node-modules:/workspace/clawforce/web/node_modules
+      - bladeai-clawforce-desktop-node-modules:/workspace/clawforce/desktop/node_modules
+      - bladeai-clawforce-sdk-js-node-modules:/workspace/clawforce/sdk-js/node_modules
+      - bladeai-clawforce-admin-web-node-modules:/workspace/clawforce-admin/web/node_modules
+      - bladeai-clawforce-lobster-plugin-node-modules:/workspace/clawforce-lobster-fleet/clawforce-plugin/node_modules
+      - bladeai-clawforce-lobster-dashboard-node-modules:/workspace/clawforce-lobster-fleet/dashboard-lobster/node_modules
+      - bladeai-seedforge-dashboard-node-modules:/workspace/seedforge/dashboard-admin/node_modules
       - bladeai-history:/commandhistory
       - bladeai-uv-cache:/home/vscode/.cache/uv
       - bladeai-claude:/home/vscode/.claude
@@ -75,6 +83,13 @@ services:
 
 volumes:
   bladeai-venv:
+  bladeai-clawforce-web-node-modules:
+  bladeai-clawforce-desktop-node-modules:
+  bladeai-clawforce-sdk-js-node-modules:
+  bladeai-clawforce-admin-web-node-modules:
+  bladeai-clawforce-lobster-plugin-node-modules:
+  bladeai-clawforce-lobster-dashboard-node-modules:
+  bladeai-seedforge-dashboard-node-modules:
   bladeai-history:
   bladeai-uv-cache:
   bladeai-claude:
