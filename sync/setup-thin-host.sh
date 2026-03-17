@@ -183,8 +183,8 @@ if [[ ! -f ~/.gitconfig ]] || ! git config --global user.email &>/dev/null; then
   echo "配置 git 身份（用于 commit 作者信息）:"
   read -rp "  姓名 [Kailei Zhang]: " GIT_NAME
   GIT_NAME="${GIT_NAME:-Kailei Zhang}"
-  read -rp "  邮箱 [kailei@bladeai.com]: " GIT_EMAIL
-  GIT_EMAIL="${GIT_EMAIL:-kailei@bladeai.com}"
+  read -rp "  邮箱 [yagjzx@gmail.com]: " GIT_EMAIL
+  GIT_EMAIL="${GIT_EMAIL:-yagjzx@gmail.com}"
 
   git config --global user.name "$GIT_NAME"
   git config --global user.email "$GIT_EMAIL"
@@ -192,7 +192,11 @@ if [[ ! -f ~/.gitconfig ]] || ! git config --global user.email &>/dev/null; then
   git config --global --add credential."https://github.com".helper "!/opt/homebrew/bin/gh auth git-credential"
   git config --global credential."https://gist.github.com".helper ""
   git config --global --add credential."https://gist.github.com".helper "!/opt/homebrew/bin/gh auth git-credential"
-  info "gitconfig 配置完成"
+  # Commit signing via 1Password SSH Agent
+  git config --global gpg.format ssh
+  git config --global gpg.ssh.program "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
+  git config --global commit.gpgsign true
+  info "gitconfig 配置完成（含 commit signing）"
 else
   info "gitconfig: $(git config --global user.email)"
 fi
@@ -289,6 +293,12 @@ OP_SOCK=~/Library/Group\ Containers/2BUA8C4S2C.com.1password/t/agent.sock
 if SSH_AUTH_SOCK="$OP_SOCK" ssh-add -l &>/dev/null; then
   KEY_COUNT=$(SSH_AUTH_SOCK="$OP_SOCK" ssh-add -l | wc -l | tr -d ' ')
   info "1Password SSH Agent: $KEY_COUNT 个密钥已加载"
+  # 自动设置 commit signing key（取 id_ed25519）
+  SIGNING_KEY=$(SSH_AUTH_SOCK="$OP_SOCK" ssh-add -L 2>/dev/null | grep ed25519 | head -1)
+  if [[ -n "$SIGNING_KEY" ]]; then
+    git config --global user.signingkey "$SIGNING_KEY"
+    info "commit signing key 已配置"
+  fi
 else
   warn "1Password SSH Agent 没有找到密钥"
   pause "请打开 1Password → 确认 SSH Agent 已开启 → 将 id_ed25519 私钥添加到 1Password 保险库"
