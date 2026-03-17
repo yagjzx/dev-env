@@ -22,10 +22,16 @@ docker logs bladeai-git-sync --tail 5
 
 ## 架构
 ```
-宿主机 (Thin Host): Docker + SSH + ~/workspace/ (13 repos)
-  ├─ bladeai-dev 容器: Python 3.12.12, Node 25, Go 1.25.7, Rust 1.93.0, gh, uv, gitleaks, gcloud, Claude Code, pre-commit, tmux, pm2, vim, Playwright+Chromium
-  └─ bladeai-git-sync 容器: 每5分钟自动同步 13 repos, Telegram 告警
+宿主机 (Thin Host): Homebrew + Docker + gh + gcloud + Tailscale + ~/workspace/ (50 repos)
+  ├─ bladeai-dev 容器: Python 3.12.12, Node 25, Go 1.26.0, Rust 1.93.0, gh, uv, gitleaks, gcloud, Claude Code, pre-commit, tmux, pm2, vim, Playwright+Chromium
+  └─ bladeai-git-sync 容器: 每5分钟自动同步 core repos, Telegram 告警
 ```
+
+## 宿主机工具说明 (Thin Host 设计)
+- **宿主机只装**: Homebrew · Docker Desktop · gh CLI · gcloud CLI · Tailscale
+- **gcloud 保留在宿主机**: GCP 基础设施操作（开关机、billing、网络）不依赖容器
+- **不在宿主机装**: Python · Node · npm · pip packages（全在容器里）
+- **SSH 认证**: 全部通过 1Password SSH Agent（Touch ID），无本地密钥文件
 
 ## 项目结构
 - `.devcontainer/` — Dockerfile + docker-compose.yml + post-create.sh + entrypoint.sh
@@ -135,12 +141,12 @@ docker exec -u vscode bladeai-dev bash -c '
 - 首次 build 比 Linux 慢 (Docker Desktop 虚拟化开销)
 - `SSH_AUTH_SOCK` 如果用 1Password SSH Agent, 路径不同 — 容器内 SSH 功能可能受限, 但 git 用 HTTPS (gh credential helper) 不受影响
 
-## 完整重新部署 (新机器从零开始)
-前提: gh auth login + 13 repos 已克隆到 ~/workspace/ + ~/.ssh/config 已配置
+## 完整重新部署 (新机器从零开始 — 一键)
 ```bash
-bash ~/workspace/dev-env/sync/setup-thin-host.sh
-# 然后按上面"首次部署容器"步骤执行
+bash <(curl -sL https://raw.githubusercontent.com/yagjzx/dev-env/main/sync/setup-thin-host.sh)
 ```
+脚本自动完成: Homebrew → Docker → gh → gcloud → Tailscale → gitconfig → SSH config → gh auth → clone 所有 repos → 容器 build/start → post-create
 
-## 17 个仓库
-bladeai, dev-env, clawforce (V1 废弃), clawforce-v2, clawforce-lobster-fleet, seedforge, gtm-engine (以上4个在 heydoraai org), crypto-backtest, quant-backtest, quant-lab, ntws, longxia-market, ig-recruit-radar, xai-radar, claude-memory, ai-expert-monitor, whisper-vocab
+## 核心仓库 (19 个，git-sync 同步)
+yagjzx: bladeai, dev-env, crypto-backtest, quant-backtest, quant-lab, ntws, longxia-market, ig-recruit-radar, xai-radar, claude-memory, ai-expert-monitor, whisper-vocab, NeoAI
+heydoraai: clawforce, clawforce-lobster-fleet, seedforge, gtm-engine, dev-env(→heydoraai-dev-env), devcontainer
