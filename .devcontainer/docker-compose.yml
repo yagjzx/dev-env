@@ -20,6 +20,10 @@ services:
       - ~/.config/gh:/home/vscode/.config/gh
       # gcloud auth
       - ~/.config/gcloud:/home/vscode/.config/gcloud
+      # AI CLI auth/config
+      - ~/.claude:/home/vscode/.claude
+      - ~/.codex:/home/vscode/.codex
+      - ~/.gemini:/home/vscode/.gemini
       # Git config: NOT mounted — set up in post-create.sh instead
       # Host gitconfig has core.hooksPath which conflicts with pre-commit install
       - ~/.gitconfig:/home/vscode/.gitconfig-host:ro
@@ -34,7 +38,6 @@ services:
       - bladeai-seedforge-dashboard-node-modules:/workspace/seedforge/dashboard-admin/node_modules
       - bladeai-history:/commandhistory
       - bladeai-uv-cache:/home/vscode/.cache/uv
-      - bladeai-claude:/home/vscode/.claude
     environment:
       HOST_UID: "${HOST_UID:-1000}"
       HOST_GID: "${HOST_GID:-1000}"
@@ -92,4 +95,3 @@ volumes:
   bladeai-seedforge-dashboard-node-modules:
   bladeai-history:
   bladeai-uv-cache:
-  bladeai-claude:

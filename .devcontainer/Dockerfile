@@ -1,13 +1,17 @@
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
 
 # === Pinned versions (update these to stay aligned with host) ===
-ARG PYTHON_VERSION=3.12.12
-ARG NODE_MAJOR=25
+ARG PYTHON_VERSION=3.12.13
+ARG NODE_VERSION=25.8.1
+ARG GCLOUD_VERSION=561.0.0-0
 ARG GITLEAKS_VERSION=8.30.0
-ARG RUST_VERSION=1.93.0
-ARG UV_VERSION=0.10.6
-ARG GH_VERSION=2.87.3
-ARG GO_VERSION=1.26.0
+ARG RUST_VERSION=1.94.0
+ARG UV_VERSION=0.10.11
+ARG GH_VERSION=2.88.1
+ARG GO_VERSION=1.26.1
+ARG CLAUDE_CODE_VERSION=2.1.78
+ARG CODEX_VERSION=0.115.0
+ARG GEMINI_VERSION=0.34.0
 
 # ============================================================
 # Layer 1: System deps + Playwright system libs + vim (~350MB)
@@ -19,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsqlite3-dev libncursesw5-dev xz-utils tk-dev libxml2-dev \
     libxmlsec1-dev libffi-dev liblzma-dev \
     # Utilities
-    curl wget jq shellcheck tmux util-linux gosu vim ripgrep \
+    curl wget jq shellcheck tmux util-linux gosu tini vim ripgrep \
     # Playwright Chromium system dependencies (Ubuntu 24.04)
     libasound2t64 libatk-bridge2.0-0t64 libatk1.0-0t64 \
     libatspi2.0-0t64 libcairo2 libcups2t64 libdbus-1-3 \
@@ -36,7 +40,7 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
       | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
       > /etc/apt/sources.list.d/google-cloud-sdk.list \
-    && apt-get update && apt-get install -y google-cloud-cli \
+    && apt-get update && apt-get install -y "google-cloud-cli=${GCLOUD_VERSION}" \
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================================
@@ -48,13 +52,17 @@ RUN ARCH=$(dpkg --print-architecture) \
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 # ============================================================
-# Layer 4: Node.js + Claude Code + pm2 (~330MB)
+# Layer 4: Node.js + AI CLIs + pm2 (~330MB)
 # ============================================================
-RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
-RUN npm install -g pm2
-RUN curl -fsSL https://claude.ai/install.sh | bash \
+RUN ARCH=$(dpkg --print-architecture) \
+    && NODE_ARCH=$([ "$ARCH" = "amd64" ] && echo "x64" || echo "arm64") \
+    && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" \
+      | tar -xJ --strip-components=1 -C /usr/local
+RUN npm install -g \
+      pm2 \
+      "@openai/codex@${CODEX_VERSION}" \
+      "@google/gemini-cli@${GEMINI_VERSION}"
+RUN curl -fsSL https://claude.ai/install.sh | bash -s -- "${CLAUDE_CODE_VERSION}" \
     && cp /root/.local/bin/claude /usr/local/bin/claude \
     && chmod 755 /usr/local/bin/claude
 
@@ -104,7 +112,8 @@ RUN curl -sS https://pyenv.run | bash \
 
 # ============================================================
 # Layer 9: Python core packages (~500MB, most frequently updated)
-# All system-wide installs as root (pyenv in /opt is root-owned)
+# requirements-base.in is the human-edited source; requirements-base.txt is
+# the compiled lockfile refreshed by sync/refresh-devcontainer-stack.sh.
 # ============================================================
 COPY requirements-base.txt /tmp/requirements-base.txt
 RUN pip install --no-cache-dir -r /tmp/requirements-base.txt
@@ -129,4 +138,4 @@ RUN pip install --no-cache-dir pre-commit \
 # ============================================================
 ENV PATH="/workspace/.venv/bin:${PATH}"
 WORKDIR /workspace
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]

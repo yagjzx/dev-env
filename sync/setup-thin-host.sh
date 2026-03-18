@@ -87,7 +87,7 @@ echo -e "${BOLD}║   M5 Max MacBook Pro 一键环境部署                    �
 echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo "宿主机只装: Homebrew · Docker · gh · gcloud · Tailscale"
-echo "开发工具全在容器: Python · Node · Go · Rust · Claude Code"
+echo "开发工具全在容器: Python · Node · Go · Rust · Claude Code · Codex · Gemini"
 echo ""
 echo -e "${YELLOW}预计耗时: 20-35 分钟（主要是 Docker 镜像 build）${NC}"
 echo ""
@@ -394,7 +394,9 @@ docker compose -f "$COMPOSE_FILE" build dev
 info "镜像 build 完成"
 
 # 4.4 启动容器
-docker compose -f "$COMPOSE_FILE" up -d
+# Force recreate so runtime config changes like init/entrypoint updates
+# actually reach long-lived dev containers.
+docker compose -f "$COMPOSE_FILE" up -d --force-recreate
 info "容器启动完成"
 
 # 4.5 等 entrypoint UID 重映射完成
@@ -453,6 +455,8 @@ docker exec -u vscode bladeai-dev bash -c '
   echo "  uv:      $(uv --version 2>/dev/null)"
   echo "  gh:      $(gh --version 2>/dev/null | head -1)"
   echo "  Claude:  $(claude --version 2>/dev/null | head -1)"
+  echo "  Codex:   $(codex --version 2>/dev/null | head -1)"
+  echo "  Gemini:  $(gemini --version 2>/dev/null | head -1)"
   python3 -c "import pandas, numpy, httpx, pydantic; print(\"  Python packages: OK\")" 2>/dev/null || echo "  Python packages: ⚠ 部分缺失"
 ' 2>/dev/null
 
@@ -463,7 +467,7 @@ echo -e "${GREEN}${BOLD}║   部署完成！                                   
 echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo "宿主机工具:  Homebrew · Docker · gh · gcloud · Tailscale"
-echo "开发容器:    bladeai-dev (Python/Node/Go/Rust/Claude Code)"
+echo "开发容器:    bladeai-dev (Python/Node/Go/Rust/Claude/Codex/Gemini)"
 echo "Git 同步:    bladeai-git-sync (每5分钟自动 pull)"
 echo ""
 echo "常用命令:"

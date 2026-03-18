@@ -15,15 +15,20 @@ if [ "$HOST_UID" != "$CURRENT_UID" ] || [ "$HOST_GID" != "$CURRENT_GID" ]; then
     chown "$HOST_UID:$HOST_GID" /home/vscode 2>/dev/null || true
     for d in /home/vscode/.*; do
         case "$(basename "$d")" in
-            .|..|.ssh|.gitconfig-host) continue ;;
+            .|..|.ssh|.gitconfig-host|.claude|.codex|.gemini) continue ;;
         esac
         chown -R "$HOST_UID:$HOST_GID" "$d" 2>/dev/null || true
     done
     chown "$HOST_UID:$HOST_GID" /workspace 2>/dev/null || true
 fi
 
-# Named volumes are created as root — always fix ownership regardless of UID remap
+# Named volumes are created as root — always fix ownership regardless of UID remap.
+# Include uv's cache volume so post-create can install Python deps immediately.
+mkdir -p /home/vscode/.cache /home/vscode/.cache/uv
+
 for d in \
+    /home/vscode/.cache \
+    /home/vscode/.cache/uv \
     /workspace/.venv \
     /commandhistory \
     /workspace/clawforce/web/node_modules \
