@@ -42,6 +42,22 @@ do
     chown -R "$(id -u vscode):$(id -g vscode)" "$d" 2>/dev/null || true
 done
 
+# Docker Desktop exposes the host SSH agent at /run/host-services/ssh-auth.sock.
+# Copy the host SSH config into a writable file and rewrite IdentityAgent so
+# OpenSSH inside Linux resolves the correct socket path.
+mkdir -p /home/vscode/.ssh
+if [ -f /home/vscode/.ssh/config-host ]; then
+    if grep -q '^[[:space:]]*IdentityAgent[[:space:]]' /home/vscode/.ssh/config-host; then
+        sed -E "s#^([[:space:]]*IdentityAgent[[:space:]]+).*\$#\\1${SSH_AUTH_SOCK}#" \
+            /home/vscode/.ssh/config-host > /home/vscode/.ssh/config
+    else
+        cp /home/vscode/.ssh/config-host /home/vscode/.ssh/config
+        printf '\nHost *\n  IdentityAgent %s\n' "$SSH_AUTH_SOCK" >> /home/vscode/.ssh/config
+    fi
+    chown "$(id -u vscode):$(id -g vscode)" /home/vscode/.ssh/config 2>/dev/null || true
+    chmod 600 /home/vscode/.ssh/config 2>/dev/null || true
+fi
+
 # Docker Desktop exposes the mounted socket as root:root inside Linux containers.
 # Add vscode to the socket's group so project-local docker compose commands can
 # run from inside the devcontainer without falling back to the host shell.

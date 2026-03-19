@@ -9,9 +9,11 @@ ARG RUST_VERSION=1.94.0
 ARG UV_VERSION=0.10.11
 ARG GH_VERSION=2.88.1
 ARG GO_VERSION=1.26.1
-ARG CLAUDE_CODE_VERSION=2.1.78
+ARG CLAUDE_CODE_VERSION=2.1.79
 ARG CODEX_VERSION=0.115.0
 ARG GEMINI_VERSION=0.34.0
+ARG KUBECTL_VERSION=1.35.2
+ARG HELM_VERSION=4.1.3
 
 # ============================================================
 # Layer 1: System deps + Playwright system libs + vim (~350MB)
@@ -23,7 +25,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsqlite3-dev libncursesw5-dev xz-utils tk-dev libxml2-dev \
     libxmlsec1-dev libffi-dev liblzma-dev \
     # Utilities
-    ca-certificates curl wget jq shellcheck tmux util-linux gosu tini vim ripgrep gnupg \
+    ca-certificates curl wget jq shellcheck tmux util-linux gosu tini vim ripgrep gnupg unzip \
+    ffmpeg sox git-lfs \
     # Playwright Chromium system dependencies (Ubuntu 24.04)
     libasound2t64 libatk-bridge2.0-0t64 libatk1.0-0t64 \
     libatspi2.0-0t64 libcairo2 libcups2t64 libdbus-1-3 \
@@ -83,6 +86,7 @@ RUN ARCH=$(dpkg --print-architecture) \
       | tar -xJ --strip-components=1 -C /usr/local
 RUN npm install -g \
       pm2 \
+      pnpm \
       "@openai/codex@${CODEX_VERSION}" \
       "@google/gemini-cli@${GEMINI_VERSION}"
 RUN curl -fsSL https://claude.ai/install.sh | bash -s -- "${CLAUDE_CODE_VERSION}" \
@@ -103,6 +107,28 @@ RUN ARCH=$(dpkg --print-architecture) \
 
 RUN curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" \
       | env UV_INSTALL_DIR=/usr/local/bin sh
+
+RUN ARCH="$(dpkg --print-architecture)" \
+    && K8S_ARCH="$([ "$ARCH" = "amd64" ] && echo "amd64" || echo "arm64")" \
+    && curl -fsSL -o /usr/local/bin/kubectl \
+      "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${K8S_ARCH}/kubectl" \
+    && chmod 755 /usr/local/bin/kubectl
+
+RUN ARCH="$(dpkg --print-architecture)" \
+    && HELM_ARCH="$([ "$ARCH" = "amd64" ] && echo "amd64" || echo "arm64")" \
+    && curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${HELM_ARCH}.tar.gz" \
+      | tar -xz -C /tmp \
+    && mv "/tmp/linux-${HELM_ARCH}/helm" /usr/local/bin/helm \
+    && chmod 755 /usr/local/bin/helm \
+    && rm -rf "/tmp/linux-${HELM_ARCH}"
+
+RUN ARCH="$(dpkg --print-architecture)" \
+    && AWS_ARCH="$([ "$ARCH" = "amd64" ] && echo "x86_64" || echo "aarch64")" \
+    && curl -fsSL -o /tmp/awscliv2.zip \
+      "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" \
+    && unzip -q /tmp/awscliv2.zip -d /tmp \
+    && /tmp/aws/install \
+    && rm -rf /tmp/aws /tmp/awscliv2.zip
 
 # ============================================================
 # Layer 6: Workspace directory + entrypoint (tiny)

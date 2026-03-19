@@ -10,6 +10,15 @@ openai>=2.20.0
 litellm>=1.81.0
 anthropic>=0.34.0
 
+# === Local Model / Embedding Runtime ===
+torch>=2.8.0
+torchaudio>=2.8.0
+transformers>=4.57.0
+datasets>=4.3.0
+accelerate>=1.11.0
+sentence-transformers>=5.1.0
+onnxruntime>=1.23.0
+
 # === Web Scraping & Automation ===
 Crawl4AI>=0.8.0
 selenium>=4.40.0

@@ -76,6 +76,21 @@ require_cmd awk
 require_cmd grep
 require_cmd uv
 
+host_python_platform() {
+  case "$(uname -m)" in
+    arm64|aarch64)
+      echo "aarch64-unknown-linux-gnu"
+      ;;
+    x86_64)
+      echo "x86_64-unknown-linux-gnu"
+      ;;
+    *)
+      echo "Unsupported host architecture: $(uname -m)" >&2
+      exit 1
+      ;;
+  esac
+}
+
 current_arg() {
   sed -n -E "s/^ARG $1=(.*)$/\\1/p" "$DOCKERFILE" | head -n 1
 }
@@ -83,7 +98,10 @@ current_arg() {
 update_arg() {
   local name="$1"
   local value="$2"
-  sed -i -E "s#^(ARG ${name}=).*#\\1${value}#" "$DOCKERFILE"
+  local tmp_file
+  tmp_file="$(mktemp)"
+  sed -E "s#^(ARG ${name}=).*#\\1${value}#" "$DOCKERFILE" > "$tmp_file"
+  mv "$tmp_file" "$DOCKERFILE"
 }
 
 fetch_node_version() {
@@ -182,11 +200,12 @@ update_arg GEMINI_VERSION "$GEMINI_VERSION"
 update_arg CLAUDE_CODE_VERSION "$CLAUDE_CODE_VERSION"
 
 echo "Compiling pinned Python lockfile..."
+PYTHON_PLATFORM="$(host_python_platform)"
 uv pip compile \
   "$REQ_IN" \
   --upgrade \
   --python-version "${PYTHON_VERSION%.*}" \
-  --python-platform x86_64-unknown-linux-gnu \
+  --python-platform "${PYTHON_PLATFORM}" \
   --output-file "$REQ_LOCK" \
   --custom-compile-command "bash sync/refresh-devcontainer-stack.sh --node-channel ${NODE_CHANNEL} --claude-channel ${CLAUDE_CHANNEL}"
 
