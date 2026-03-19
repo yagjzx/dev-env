@@ -18,8 +18,10 @@ services:
       - ${WORKSPACE:-~/workspace}:/workspace:cached
       # Docker socket passthrough so all dev orchestration can happen in bladeai-dev
       - ~/.docker/run/docker.sock:/var/run/docker.sock
-      # SSH agent forwarding (Linux host)
+      # SSH agent forwarding for generic CLI tools
       - ${SSH_AUTH_SOCK:-/dev/null}:/tmp/ssh-agent.sock
+      # 1Password SSH agent path expected by the host-generated ~/.ssh/config
+      - "${SSH_AUTH_SOCK:-/dev/null}:/home/vscode/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
       # SSH config (host aliases, known_hosts) — read-only
       - ~/.ssh/config:/home/vscode/.ssh/config:ro
       - ~/.ssh/known_hosts:/home/vscode/.ssh/known_hosts:ro
