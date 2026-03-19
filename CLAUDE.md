@@ -3,26 +3,35 @@
 ## 你是谁、用户是谁
 - **你（Claude Code）运行在宿主机上**，通过 `docker exec` 操控容器内的工具
 - **用户不会自己进容器**，用户只跟你对话，你负责所有技术操作
-- 当你需要 Python/Node/uv/gcloud/pre-commit 等工具时，用 `docker exec -u vscode bladeai-dev <命令>`
-- git/ssh 操作可以在宿主机直接执行（宿主机有 gitleaks hook）
+- **所有开发命令默认都在 `bladeai-dev` 容器里执行**，包括 `git`、Python、Node、测试、构建、迁移、项目级 `docker compose`
+- 默认入口：`docker exec bladeai-dev gosu vscode bash -lc '<命令>'`
+- 宿主机只负责 Docker Desktop 生命周期、devcontainer 重建、认证与挂载检查、容器不可用时的应急修复
 - 文件在宿主机 `~/workspace/` = 容器 `/workspace/`（同一份，bind mount）
 
 ## 容器操作模板
 ```bash
 # 执行命令（不进入容器，你最常用的方式）
-docker exec -u vscode bladeai-dev python3 /workspace/some-repo/script.py
-docker exec -u vscode bladeai-dev uv run --directory /workspace/some-repo pytest
-docker exec -u vscode bladeai-dev node /workspace/some-repo/index.js
-docker exec -u vscode bladeai-dev gcloud compute instances list
+docker exec bladeai-dev gosu vscode git -C /workspace/clawforce status
+docker exec bladeai-dev gosu vscode python3 /workspace/some-repo/script.py
+docker exec bladeai-dev gosu vscode uv run --directory /workspace/some-repo pytest
+docker exec bladeai-dev gosu vscode node /workspace/some-repo/index.js
+docker exec bladeai-dev gosu vscode gcloud compute instances list
+docker exec bladeai-dev gosu vscode bash -lc 'cd /workspace/clawforce && docker compose up -d postgres redis'
 
 # 检查状态
 docker ps --filter name=bladeai
 docker logs bladeai-git-sync --tail 5
 ```
 
+## 推荐入口
+- `~/workspace/dev-env/bin/dev-env doctor` — 检查 Docker、repo manifest、env 文件、PM2、健康检查
+- `~/workspace/dev-env/bin/dev-env up clawforce|seedforge|all` — 用固化脚本启动本地服务
+- `~/workspace/dev-env/bin/dev-env scan` — 生成全 workspace 结构化代码清单
+- `~/workspace/dev-env/bin/dev-env repos sync [core|full|large|all]` — 按 manifest 补齐缺失仓库
+
 ## 架构
 ```
-宿主机 (Thin Host): Homebrew + Docker + gh + gcloud + Tailscale + ~/workspace/ (50 repos)
+宿主机 (Thin Host): Homebrew + Docker + gh + gcloud + Tailscale + ~/workspace/ (manifest-driven repo set)
   ├─ bladeai-dev 容器: Python 3.12.12, Node 25, Go 1.26.0, Rust 1.93.0, gh, uv, gitleaks, gcloud, Claude Code, pre-commit, tmux, pm2, vim, Playwright+Chromium
   └─ bladeai-git-sync 容器: 每5分钟自动同步 core repos, Telegram 告警
 ```
@@ -37,14 +46,23 @@ docker logs bladeai-git-sync --tail 5
 - `.devcontainer/` — Dockerfile + docker-compose.yml + post-create.sh + entrypoint.sh
 - `.devcontainer/.env` — 机器特定 HOST_UID/HOST_GID（不入 git，用 `.env.example` 作模板）
 - `.pre-commit-config.yaml` — 共享 pre-commit hooks (gitleaks + check-yaml + detect-private-key)
+- `bin/dev-env` — 统一入口 (`doctor` / `up` / `scan` / `repos sync`)
+- `manifests/repos.tsv` — repo 声明式清单（core/full/large + local dir）
+- `manifests/services.tsv` — 本地服务画像（env / pm2 / health / ports）
+- `templates/*.env.devcontainer.local` — 本地 dev 环境模板
+- `templates/clawforce.compose.override.yml` — ClawForce 本机端口 override（避免宿主机 5432/6379 冲突）
+- `sync/run-clawforce-stack.sh` — dev-env 自己维护的 ClawForce 本地 runner，避免把机器差异写回业务 repo
 - `sync/setup-thin-host.sh` — 新机器一键部署脚本
 - `sync/git-sync.sh` — 自动同步守护（容器 sidecar + 宿主机 cron 双跑）
 
 ## 关键规则
-- **宿主机只装 Docker + SSH**，开发工具全在容器内
+- **所有开发命令必须在 `bladeai-dev` 中执行**
+- **宿主机只装 Docker + SSH + 基础认证工具**，项目开发工具全在容器内
+- **默认不要用 `docker exec -u vscode ...`**：Docker 不会带补充组，`docker.sock` 权限会丢；统一用 `docker exec bladeai-dev gosu vscode ...`
 - **Host gitconfig 挂载到 `.gitconfig-host:ro`**（不是 `.gitconfig`），避免 core.hooksPath 冲突
 - **Git hooks 双环境**: 宿主机用 global `core.hooksPath` (简单 gitleaks)，容器用 per-repo `pre-commit install`
 - **named volume 首次创建后需 chown**: `docker exec bladeai-dev chown -R vscode:vscode /workspace/.venv /commandhistory`
+- **bladeai-dev 挂载 Docker socket**：项目级 compose / infra orchestration 也在容器内完成
 
 ## Dockerfile 防护规则 (血泪教训!)
 

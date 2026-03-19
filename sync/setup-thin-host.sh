@@ -22,62 +22,31 @@ OS="$(uname -s)"
 
 WORKSPACE="${HOME}/workspace"
 COMPOSE_FILE="$WORKSPACE/dev-env/.devcontainer/docker-compose.yml"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_MANIFEST_LOCAL="$SCRIPT_DIR/../manifests/repos.tsv"
+REPO_MANIFEST_URL="https://raw.githubusercontent.com/yagjzx/dev-env/main/manifests/repos.tsv"
 
-# ─── Repo 清单 ──────────────────────────────────────────────────────────────
-# 核心仓库 (git-sync 同步 + 日常开发必用)
-CORE_REPOS=(
-  "yagjzx/bladeai"
-  "yagjzx/dev-env"
-  "yagjzx/crypto-backtest"
-  "yagjzx/quant-backtest"
-  "yagjzx/quant-lab"
-  "yagjzx/ntws"
-  "yagjzx/longxia-market"
-  "yagjzx/ig-recruit-radar"
-  "yagjzx/xai-radar"
-  "yagjzx/claude-memory"
-  "yagjzx/ai-expert-monitor"
-  "yagjzx/whisper-vocab"
-  "yagjzx/NeoAI"
-  "heydoraai/clawforce"
-  "heydoraai/clawforce-lobster-fleet"
-  "heydoraai/seedforge"
-  "heydoraai/gtm-engine"
-  "heydoraai/dev-env"       # -> heydoraai-dev-env
-  "heydoraai/devcontainer"
-)
+# ─── Repo manifest ──────────────────────────────────────────────────────────
+manifest_stream() {
+  if [[ -f "$REPO_MANIFEST_LOCAL" ]]; then
+    cat "$REPO_MANIFEST_LOCAL"
+  else
+    curl -fsSL "$REPO_MANIFEST_URL"
+  fi
+}
 
-# 完整仓库 (heydoraai org 活跃项目，非 AI 大模型)
-FULL_REPOS=(
-  "heydoraai/autocollab"
-  "heydoraai/chatterbox"
-  "heydoraai/claw-devops"
-  "heydoraai/clawadmin"
-  "heydoraai/clawforce-admin"
-  "heydoraai/clawforce-verifier"
-  "heydoraai/clawgrid-social"
-  "heydoraai/clawmesh"
-  "heydoraai/crawler"
-  "heydoraai/openclaw-radar"
-  "heydoraai/lab"
-  "heydoraai/owners"
-  "heydoraai/dora-admin"
-  "heydoraai/dora-asr"
-  "heydoraai/dora-creator"
-  "heydoraai/dora-data"
-  "heydoraai/dora-devops"
-  "heydoraai/dora-h5"
-  "heydoraai/dora-http"
-  "heydoraai/dora-ios"
-  "heydoraai/dora-llm"
-  "heydoraai/dora-parent"
-  "heydoraai/dora-python"
-  "heydoraai/dora-web"
-)
+repo_rows() {
+  local tier="${1:-all}"
+  if [[ "$tier" == "all" ]]; then
+    manifest_stream | awk -F '\t' 'NF >= 3 && $1 !~ /^#/'
+  else
+    manifest_stream | awk -F '\t' -v tier="$tier" 'NF >= 3 && $1 !~ /^#/ && $1 == tier'
+  fi
+}
 
-# 大型 AI 模型 repo (体积大，默认跳过，需要时手动 clone)
-# heydoraai/coqui-ai-TTS  heydoraai/CosyVoice  heydoraai/F5-TTS
-# heydoraai/fish-speech   heydoraai/GPT-SoVITS
+repo_count() {
+  repo_rows "$1" | wc -l | tr -d ' '
+}
 
 # ─── Phase 0: 欢迎 & 前置说明 ───────────────────────────────────────────────
 echo ""
@@ -328,13 +297,7 @@ mkdir -p "$WORKSPACE"
 
 clone_repo() {
   local repo="$1"  # 格式: org/name
-  local name
-  name=$(basename "$repo")
-
-  # 特殊处理: heydoraai/dev-env → heydoraai-dev-env (避免与 yagjzx/dev-env 冲突)
-  if [[ "$repo" == "heydoraai/dev-env" ]]; then
-    name="heydoraai-dev-env"
-  fi
+  local name="${2:-$(basename "$repo")}"
 
   local target="$WORKSPACE/$name"
   if [[ -d "$target/.git" ]]; then
@@ -345,19 +308,33 @@ clone_repo() {
   gh repo clone "$repo" "$target" -- --quiet 2>&1 && echo "✓" || echo "⚠ 失败（可能是私有仓库权限）"
 }
 
-echo "正在克隆核心仓库 (${#CORE_REPOS[@]} 个)..."
-for repo in "${CORE_REPOS[@]}"; do
-  clone_repo "$repo"
-done
+CORE_COUNT="$(repo_count core)"
+FULL_COUNT="$(repo_count full)"
+LARGE_COUNT="$(repo_count large)"
+
+echo "正在克隆核心仓库 (${CORE_COUNT} 个)..."
+while IFS=$'\t' read -r _tier repo local_dir; do
+  clone_repo "$repo" "$local_dir"
+done < <(repo_rows core)
 
 echo ""
-echo "是否克隆完整仓库列表（heydoraai dora-* 等，共 ${#FULL_REPOS[@]} 个）？"
+echo "是否克隆扩展仓库（full tier，共 ${FULL_COUNT} 个）？"
 read -rp "  [y/N]: " CLONE_FULL
 if [[ "${CLONE_FULL,,}" == "y" ]]; then
-  for repo in "${FULL_REPOS[@]}"; do
-    clone_repo "$repo"
-  done
-  info "完整仓库克隆完成"
+  while IFS=$'\t' read -r _tier repo local_dir; do
+    clone_repo "$repo" "$local_dir"
+  done < <(repo_rows full)
+  info "扩展仓库克隆完成"
+fi
+
+echo ""
+echo "是否克隆大型模型仓库（large tier，共 ${LARGE_COUNT} 个，体积大）？"
+read -rp "  [y/N]: " CLONE_LARGE
+if [[ "${CLONE_LARGE,,}" == "y" ]]; then
+  while IFS=$'\t' read -r _tier repo local_dir; do
+    clone_repo "$repo" "$local_dir"
+  done < <(repo_rows large)
+  info "大型模型仓库克隆完成"
 fi
 
 info "Workspace 准备完成: $(ls "$WORKSPACE" | grep -v '^_' | wc -l | tr -d ' ') 个目录"
@@ -409,31 +386,22 @@ until docker exec bladeai-dev echo "ready" &>/dev/null; do
 done
 
 # 4.6 运行 post-create
-docker exec -u vscode bladeai-dev bash /workspace/dev-env/.devcontainer/post-create.sh
+docker exec bladeai-dev gosu vscode bash /workspace/dev-env/.devcontainer/post-create.sh
 info "post-create 完成"
 
 # ─── Phase 5: Dev 快捷命令 ───────────────────────────────────────────────────
 step "Phase 5: 快捷命令"
 
 mkdir -p "$HOME/bin"
+cat > "$HOME/bin/dev-env" << 'WRAPPER'
+#!/bin/bash
+exec "$HOME/workspace/dev-env/bin/dev-env" "$@"
+WRAPPER
+chmod +x "$HOME/bin/dev-env"
+
 cat > "$HOME/bin/dev" << 'WRAPPER'
 #!/bin/bash
-# 进入 bladeai-dev 容器
-# 用法:
-#   dev              — 交互式 bash
-#   dev <命令>        — 执行命令后退出
-CONTAINER="bladeai-dev"
-USER="vscode"
-if ! docker inspect "$CONTAINER" &>/dev/null; then
-  echo "容器 $CONTAINER 未运行，请先执行:"
-  echo "  cd ~/workspace/dev-env/.devcontainer && docker compose up -d"
-  exit 1
-fi
-if [[ $# -eq 0 ]]; then
-  exec docker exec -it -u "$USER" "$CONTAINER" bash
-else
-  exec docker exec -u "$USER" "$CONTAINER" "$@"
-fi
+exec "$HOME/workspace/dev-env/bin/dev-env" shell "$@"
 WRAPPER
 chmod +x "$HOME/bin/dev"
 
@@ -442,12 +410,12 @@ if ! grep -q 'PATH.*HOME/bin' ~/.zshrc 2>/dev/null; then
   echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
 fi
 export PATH="$HOME/bin:$PATH"
-info "快捷命令创建完成: 运行 'dev' 进入容器"
+info "快捷命令创建完成: 运行 'dev' 进入容器，'dev-env doctor' 做全环境自检"
 
 # ─── Phase 6: 验证 ───────────────────────────────────────────────────────────
 step "Phase 6: 验证"
 
-docker exec -u vscode bladeai-dev bash -c '
+docker exec bladeai-dev gosu vscode bash -lc '
   echo "  Python:  $(python3 --version 2>/dev/null)"
   echo "  Node:    $(node --version 2>/dev/null)"
   echo "  Go:      $(go version 2>/dev/null | cut -d" " -f3)"
@@ -472,7 +440,9 @@ echo "Git 同步:    bladeai-git-sync (每5分钟自动 pull)"
 echo ""
 echo "常用命令:"
 echo "  dev                  — 进入开发容器"
-echo "  dev python3 xxx.py   — 直接执行容器命令"
+echo "  dev-env doctor       — 检查 Docker / repo manifest / 服务健康"
+echo "  dev-env up all       — 启动 clawforce + seedforge"
+echo "  dev-env scan         — 生成 workspace 代码清单"
 echo "  docker compose -f ~/workspace/dev-env/.devcontainer/docker-compose.yml logs -f"
 echo ""
 echo "⚠️  请手动完成:"

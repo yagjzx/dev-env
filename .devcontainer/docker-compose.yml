@@ -8,9 +8,16 @@ services:
     init: true
     stdin_open: true
     tty: true
+    ports:
+      - "8000:8000"
+      - "5173:5173"
+      - "8100:8100"
+      - "5174:5174"
     volumes:
-      # Workspace (all 13 repos, bind-mounted from host)
+      # Workspace (bind-mounted from host; repo set is managed by manifests/repos.tsv)
       - ${WORKSPACE:-~/workspace}:/workspace:cached
+      # Docker socket passthrough so all dev orchestration can happen in bladeai-dev
+      - ~/.docker/run/docker.sock:/var/run/docker.sock
       # SSH agent forwarding (Linux host)
       - ${SSH_AUTH_SOCK:-/dev/null}:/tmp/ssh-agent.sock
       # SSH config (host aliases, known_hosts) — read-only
@@ -48,6 +55,7 @@ services:
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
       UV_CACHE_DIR: /home/vscode/.cache/uv
       PLAYWRIGHT_BROWSERS_PATH: /home/vscode/.cache/ms-playwright
+      DOCKER_HOST: unix:///var/run/docker.sock
       GH_TOKEN: "${GH_TOKEN}"
     working_dir: /workspace
 

@@ -44,10 +44,23 @@ else
 fi
 HOSTNAME=$(hostname -s)
 
-REPOS=(bladeai dev-env clawforce clawforce-v2 clawforce-lobster-fleet seedforge gtm-engine
-    crypto-backtest quant-backtest quant-lab ntws
-    longxia-market ig-recruit-radar xai-radar claude-memory
-    ai-expert-monitor whisper-vocab)
+discover_repos() {
+    find "$WORKSPACE" -mindepth 1 -maxdepth 2 \( -type d -o -type f \) -name .git -exec dirname {} \; 2>/dev/null \
+        | while IFS= read -r repo_dir; do
+            basename "$repo_dir"
+        done \
+        | sort -u
+}
+
+REPOS=()
+while IFS= read -r repo; do
+    [ -n "$repo" ] && REPOS+=("$repo")
+done < <(discover_repos)
+
+if [ "${#REPOS[@]}" -eq 0 ]; then
+    echo "[git-sync] No git repos found under $WORKSPACE"
+    exit 0
+fi
 
 log() {
     mkdir -p "$(dirname "$LOG")"

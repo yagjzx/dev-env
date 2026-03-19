@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsqlite3-dev libncursesw5-dev xz-utils tk-dev libxml2-dev \
     libxmlsec1-dev libffi-dev liblzma-dev \
     # Utilities
-    curl wget jq shellcheck tmux util-linux gosu tini vim ripgrep \
+    ca-certificates curl wget jq shellcheck tmux util-linux gosu tini vim ripgrep gnupg \
     # Playwright Chromium system dependencies (Ubuntu 24.04)
     libasound2t64 libatk-bridge2.0-0t64 libatk1.0-0t64 \
     libatspi2.0-0t64 libcairo2 libcups2t64 libdbus-1-3 \
@@ -44,11 +44,34 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================================
+# Layer 2.5: Docker CLI + Compose plugin
+# Lets the devcontainer orchestrate sibling compose stacks through the
+# host Docker Desktop socket mounted at /var/run/docker.sock.
+# ============================================================
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+      -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && . /etc/os-release \
+    && ARCH="$(dpkg --print-architecture)" \
+    && echo \
+      "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" \
+      > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+      docker-ce-cli \
+      docker-buildx-plugin \
+      docker-compose-plugin \
+    && rm -rf /var/lib/apt/lists/*
+
+# ============================================================
 # Layer 3: Go (~243MB, rarely changes)
 # ============================================================
 RUN ARCH=$(dpkg --print-architecture) \
-    && curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" \
-      | tar -C /usr/local -xz
+    && curl --fail --show-error --silent --location --retry 5 --retry-all-errors \
+      -o /tmp/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm -f /tmp/go.tar.gz
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 # ============================================================

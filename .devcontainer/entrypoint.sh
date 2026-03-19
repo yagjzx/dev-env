@@ -42,6 +42,23 @@ do
     chown -R "$(id -u vscode):$(id -g vscode)" "$d" 2>/dev/null || true
 done
 
+# Docker Desktop exposes the mounted socket as root:root inside Linux containers.
+# Add vscode to the socket's group so project-local docker compose commands can
+# run from inside the devcontainer without falling back to the host shell.
+if [ -S /var/run/docker.sock ]; then
+    SOCK_GID="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || true)"
+    if [ -n "$SOCK_GID" ] && ! id -G vscode | tr ' ' '\n' | grep -qx "$SOCK_GID"; then
+        if [ "$SOCK_GID" = "0" ]; then
+            usermod -aG 0 vscode 2>/dev/null || true
+        else
+            if ! getent group "$SOCK_GID" >/dev/null 2>&1; then
+                groupadd -g "$SOCK_GID" dockerhost 2>/dev/null || true
+            fi
+            usermod -aG "$SOCK_GID" vscode 2>/dev/null || usermod -aG dockerhost vscode 2>/dev/null || true
+        fi
+    fi
+fi
+
 # If args provided, exec them as vscode; otherwise sleep forever
 if [ $# -gt 0 ]; then
     exec gosu vscode "$@"
