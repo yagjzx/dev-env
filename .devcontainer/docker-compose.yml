@@ -24,6 +24,11 @@ services:
       # Host SSH config is copied and rewritten in entrypoint.sh for Linux paths.
       - ~/.ssh/config:/home/vscode/.ssh/config-host:ro
       - ~/.ssh/known_hosts:/home/vscode/.ssh/known_hosts:ro
+      # Audit scripts still need direct key-file fallback when Docker Desktop's
+      # host-services SSH agent proxy does not expose 1Password identities.
+      - ~/.ssh/id_ed25519:/home/vscode/.ssh/id_ed25519:ro
+      - ~/.ssh/id_ed25519-cert.pub:/home/vscode/.ssh/id_ed25519-cert.pub:ro
+      - ~/.ssh/google_compute_engine:/home/vscode/.ssh/google_compute_engine:ro
       # GitHub CLI auth
       - ~/.config/gh:/home/vscode/.config/gh
       # gcloud auth
