@@ -81,6 +81,8 @@ services:
         git config --global --add safe.directory '*'
         git config --global credential.https://github.com.helper '!/usr/local/bin/gh auth git-credential'
         git config --global credential.https://gist.github.com.helper '!/usr/local/bin/gh auth git-credential'
+        # Rewrite SSH remotes to HTTPS so gh credential helper works (container has no SSH key)
+        git config --global url.https://github.com/.insteadOf git@github.com:
         # Install gh CLI for HTTPS credential helper ($$=escape for compose)
         ARCH=$$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
         curl -sL "https://github.com/cli/cli/releases/download/v2.86.0/gh_2.86.0_linux_$${ARCH}.tar.gz" \
