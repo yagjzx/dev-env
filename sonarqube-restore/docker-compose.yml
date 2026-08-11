@@ -8,6 +8,9 @@
 #
 # 数据安全：下列 volumes 均为 external（沿用原有具名卷），停止容器不会删除数据，
 #          历史审计结果、插件、数据库内容全部保留。
+#
+# 使用前：复制 .env.example 为 .env 并填入数据库口令（.env 已被 git 忽略）。
+#        口令必须与既有卷 tmp_sonar_postgres_data 中的一致，否则连不上库。
 
 services:
   sonar-db:
@@ -16,7 +19,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: sonarqube
-      POSTGRES_PASSWORD: sonarqube_audit_2026
+      POSTGRES_PASSWORD: ${SONAR_DB_PASSWORD:?SONAR_DB_PASSWORD 未设置，请先创建 .env}
       POSTGRES_DB: sonarqube
     volumes:
       - sonar_postgres_data:/var/lib/postgresql/data
@@ -36,15 +39,17 @@ services:
     environment:
       SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/sonarqube
       SONAR_JDBC_USERNAME: sonarqube
-      SONAR_JDBC_PASSWORD: sonarqube_audit_2026
+      SONAR_JDBC_PASSWORD: ${SONAR_DB_PASSWORD:?SONAR_DB_PASSWORD 未设置，请先创建 .env}
     ports:
-      - "9000:9000"
+      # 仅绑定 loopback：SonarQube 自带账号体系但默认口令弱，
+      # 不应直接暴露到 0.0.0.0。远程访问走 Tailscale 或 SSH 隧道。
+      - "127.0.0.1:9000:9000"
     volumes:
       - sonarqube_data:/opt/sonarqube/data
       - sonarqube_extensions:/opt/sonarqube/extensions
       - sonarqube_logs:/opt/sonarqube/logs
-      # 待审计代码所在路径
-      - /data/neolix:/data/neolix
+      # 待审计代码所在路径。扫描器只需读取源码，挂只读避免容器写坏审计数据。
+      - /data/neolix:/data/neolix:ro
 
 # 沿用原有具名卷（原 compose project 名为 tmp，故卷名带 tmp_ 前缀）
 volumes:

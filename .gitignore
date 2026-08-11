@@ -16,3 +16,7 @@ Thumbs.db
 *~
 .idea/
 .vscode/
+
+# Secrets
+.env
+sonarqube-restore/.env
