@@ -1,0 +1,62 @@
+# SonarQube 恢复用 compose
+#
+# 背景：2026-08-11 为配合开发机缩容（64G -> 32G），停用 SonarQube 释放约 2.2G 内存。
+#       代码审计 Phase 2 启动时，在本目录执行 `docker compose up -d` 即可恢复。
+#
+# 说明：原 compose 文件位于 /tmp/sonarqube-docker-compose.yml，已随 /tmp 清理丢失。
+#       本文件由当时运行中容器的实际配置反向导出重建。
+#
+# 数据安全：下列 volumes 均为 external（沿用原有具名卷），停止容器不会删除数据，
+#          历史审计结果、插件、数据库内容全部保留。
+
+services:
+  sonar-db:
+    image: postgres:16
+    container_name: neoai-sonar-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sonarqube
+      POSTGRES_PASSWORD: sonarqube_audit_2026
+      POSTGRES_DB: sonarqube
+    volumes:
+      - sonar_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonarqube"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  sonarqube:
+    image: sonarqube:10.7-community
+    container_name: neoai-sonarqube
+    restart: unless-stopped
+    depends_on:
+      sonar-db:
+        condition: service_healthy
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/sonarqube
+      SONAR_JDBC_USERNAME: sonarqube
+      SONAR_JDBC_PASSWORD: sonarqube_audit_2026
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+      # 待审计代码所在路径
+      - /data/neolix:/data/neolix
+
+# 沿用原有具名卷（原 compose project 名为 tmp，故卷名带 tmp_ 前缀）
+volumes:
+  sonarqube_data:
+    external: true
+    name: tmp_sonarqube_data
+  sonarqube_extensions:
+    external: true
+    name: tmp_sonarqube_extensions
+  sonarqube_logs:
+    external: true
+    name: tmp_sonarqube_logs
+  sonar_postgres_data:
+    external: true
+    name: tmp_sonar_postgres_data
