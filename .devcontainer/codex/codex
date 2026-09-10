@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Keep Linux CLI state separate from the mounted macOS desktop state.
+set -euo pipefail
+codex_install_dir="$(dirname "$(readlink -f "$0")")"
+codex_state_dir="${CODEX_HOME:-/home/vscode/.codex/container-linux}"
+if [[ ! -f "$codex_state_dir/config.toml" && "$codex_state_dir" == /home/vscode/.codex/container-linux ]]; then
+    /opt/pyenv/shims/python3 "$codex_install_dir/configure.py" >/dev/null
+fi
+exec env CODEX_HOME="$codex_state_dir" /usr/local/bin/node \
+    /usr/local/lib/node_modules/@openai/codex/bin/codex.js "$@"

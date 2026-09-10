@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ ! -f /opt/codex-artifacts/node/node_modules/@oai/artifact-tool/package.json ]]; then
+    printf '%s\n' 'Artifact Tool is not installed. Run the dev-env Codex artifact setup.' >&2
+    exit 1
+fi
+exec /usr/local/bin/node --import /opt/codex-artifacts/artifact-register.mjs "$@"
