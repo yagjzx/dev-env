@@ -10,7 +10,7 @@ ARG UV_VERSION=0.10.11
 ARG GH_VERSION=2.88.1
 ARG GO_VERSION=1.26.1
 ARG CLAUDE_CODE_VERSION=2.1.79
-ARG CODEX_VERSION=0.115.0
+ARG CODEX_VERSION=0.160.0
 ARG GEMINI_VERSION=0.34.0
 ARG KUBECTL_VERSION=1.35.2
 ARG HELM_VERSION=4.1.3
@@ -183,6 +183,9 @@ RUN pip install --no-cache-dir pre-commit \
     && chmod -R a+rX /opt/pyenv
 
 # ============================================================
+# Codex Linux sandbox uses the distribution bubblewrap binary.
+RUN apt-get update && apt-get install -y --no-install-recommends bubblewrap && rm -rf /var/lib/apt/lists/*
+
 # Final: PATH + workspace setup
 # ============================================================
 ENV PATH="/workspace/.venv/bin:${PATH}"

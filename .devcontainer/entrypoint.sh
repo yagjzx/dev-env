@@ -15,7 +15,7 @@ if [ "$HOST_UID" != "$CURRENT_UID" ] || [ "$HOST_GID" != "$CURRENT_GID" ]; then
     chown "$HOST_UID:$HOST_GID" /home/vscode 2>/dev/null || true
     for d in /home/vscode/.*; do
         case "$(basename "$d")" in
-            .|..|.ssh|.gitconfig-host|.claude|.codex|.gemini) continue ;;
+            .|..|.ssh|.gitconfig-host|.claude|.codex|.gemini|.azure) continue ;;
         esac
         chown -R "$HOST_UID:$HOST_GID" "$d" 2>/dev/null || true
     done

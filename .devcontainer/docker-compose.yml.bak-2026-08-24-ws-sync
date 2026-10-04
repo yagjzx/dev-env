@@ -1,0 +1,113 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bladeai-dev
+    restart: unless-stopped
+    init: true
+    stdin_open: true
+    tty: true
+    ports:
+      - "8000:8000"
+      - "5173:5173"
+      - "8100:8100"
+      - "5174:5174"
+    volumes:
+      # Workspace (bind-mounted from host; repo set is managed by manifests/repos.tsv)
+      - ${WORKSPACE:-~/workspace}:/workspace:cached
+      # Docker socket passthrough so all dev orchestration can happen in bladeai-dev
+      - ~/.docker/run/docker.sock:/var/run/docker.sock
+      # Docker Desktop exposes the host SSH agent through a stable proxy socket.
+      # Recreate the container with host SSH_AUTH_SOCK pointing at the 1Password agent.
+      - /run/host-services/ssh-auth.sock:/run/host-services/ssh-auth.sock
+      # Host SSH config is copied and rewritten in entrypoint.sh for Linux paths.
+      - ~/.ssh/config:/home/vscode/.ssh/config-host:ro
+      - ~/.ssh/known_hosts:/home/vscode/.ssh/known_hosts:ro
+      # Audit scripts still need direct key-file fallback when Docker Desktop's
+      # host-services SSH agent proxy does not expose 1Password identities.
+      - ~/.ssh/id_ed25519:/home/vscode/.ssh/id_ed25519:ro
+      - ~/.ssh/id_ed25519-cert.pub:/home/vscode/.ssh/id_ed25519-cert.pub:ro
+      - ~/.ssh/google_compute_engine:/home/vscode/.ssh/google_compute_engine:ro
+      # GitHub CLI auth
+      - ~/.config/gh:/home/vscode/.config/gh
+      # gcloud auth
+      - ~/.config/gcloud:/home/vscode/.config/gcloud
+      # AI CLI auth/config
+      - ~/.claude:/home/vscode/.claude
+      - ~/.codex:/home/vscode/.codex
+      - ~/.gemini:/home/vscode/.gemini
+      # Git config: NOT mounted — set up in post-create.sh instead
+      # Host gitconfig has core.hooksPath which conflicts with pre-commit install
+      - ~/.gitconfig:/home/vscode/.gitconfig-host:ro
+      # Persistent named volumes (survive container rebuilds)
+      - bladeai-venv:/workspace/.venv
+      - bladeai-clawforce-web-node-modules:/workspace/clawforce/web/node_modules
+      - bladeai-clawforce-desktop-node-modules:/workspace/clawforce/desktop/node_modules
+      - bladeai-clawforce-sdk-js-node-modules:/workspace/clawforce/sdk-js/node_modules
+      - bladeai-clawforce-admin-web-node-modules:/workspace/clawforce-admin/web/node_modules
+      - bladeai-clawforce-lobster-plugin-node-modules:/workspace/clawforce-lobster-fleet/clawforce-plugin/node_modules
+      - bladeai-clawforce-lobster-dashboard-node-modules:/workspace/clawforce-lobster-fleet/dashboard-lobster/node_modules
+      - bladeai-seedforge-dashboard-node-modules:/workspace/seedforge/dashboard-admin/node_modules
+      - bladeai-history:/commandhistory
+      - bladeai-uv-cache:/home/vscode/.cache/uv
+    environment:
+      HOST_UID: "${HOST_UID:-1000}"
+      HOST_GID: "${HOST_GID:-1000}"
+      SSH_AUTH_SOCK: /run/host-services/ssh-auth.sock
+      HISTFILE: /commandhistory/.bash_history
+      PROMPT_COMMAND: "history -a"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      UV_CACHE_DIR: /home/vscode/.cache/uv
+      PLAYWRIGHT_BROWSERS_PATH: /home/vscode/.cache/ms-playwright
+      DOCKER_HOST: unix:///var/run/docker.sock
+      GH_TOKEN: "${GH_TOKEN}"
+    working_dir: /workspace
+
+  git-sync:
+    image: alpine/git:latest
+    container_name: bladeai-git-sync
+    restart: unless-stopped
+    volumes:
+      - ${WORKSPACE:-~/workspace}:/workspace
+      - ~/.config/gh:/root/.config/gh:ro
+    environment:
+      GH_TOKEN: "${GH_TOKEN}"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add --no-cache curl openssh-client bash util-linux > /dev/null 2>&1
+        git config --global --add safe.directory '*'
+        git config --global credential.https://github.com.helper '!/usr/local/bin/gh auth git-credential'
+        git config --global credential.https://gist.github.com.helper '!/usr/local/bin/gh auth git-credential'
+        # Rewrite SSH remotes to HTTPS so gh credential helper works (container has no SSH key)
+        git config --global url.https://github.com/.insteadOf git@github.com:
+        # Install gh CLI for HTTPS credential helper ($$=escape for compose)
+        ARCH=$$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+        curl -sL "https://github.com/cli/cli/releases/download/v2.86.0/gh_2.86.0_linux_$${ARCH}.tar.gz" \
+          | tar xz -C /tmp && cp /tmp/gh_2.86.0_linux_$${ARCH}/bin/gh /usr/local/bin/
+        # Verify gh auth before first sync (use gh auth token — gh auth status
+        # exits non-zero when hosts.yml has a stale entry even if GH_TOKEN works)
+        if gh auth token >/dev/null 2>&1; then
+          echo "[git-sync] gh auth: OK"
+        else
+          echo "[git-sync] WARNING: gh auth failed — syncs may fail"
+        fi
+        echo "[git-sync] Started. Syncing every 5 minutes."
+        while true; do
+          bash /workspace/dev-env/sync/git-sync.sh 2>&1
+          sleep 300
+        done
+
+volumes:
+  bladeai-venv:
+  bladeai-clawforce-web-node-modules:
+  bladeai-clawforce-desktop-node-modules:
+  bladeai-clawforce-sdk-js-node-modules:
+  bladeai-clawforce-admin-web-node-modules:
+  bladeai-clawforce-lobster-plugin-node-modules:
+  bladeai-clawforce-lobster-dashboard-node-modules:
+  bladeai-seedforge-dashboard-node-modules:
+  bladeai-history:
+  bladeai-uv-cache:

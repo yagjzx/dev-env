@@ -6,6 +6,10 @@ services:
     container_name: bladeai-dev
     restart: unless-stopped
     init: true
+    # Enable nested Codex bubblewrap; verified in an isolated container.
+    security_opt:
+      - seccomp=unconfined
+      - apparmor=unconfined
     stdin_open: true
     tty: true
     ports:
@@ -17,7 +21,7 @@ services:
       # Workspace (bind-mounted from host; repo set is managed by manifests/repos.tsv)
       - ${WORKSPACE:-~/workspace}:/workspace:cached
       # Docker socket passthrough so all dev orchestration can happen in bladeai-dev
-      - ~/.docker/run/docker.sock:/var/run/docker.sock
+      - ${HOST_DOCKER_SOCK:-~/.docker/run/docker.sock}:/var/run/docker.sock
       # Docker Desktop exposes the host SSH agent through a stable proxy socket.
       # Recreate the container with host SSH_AUTH_SOCK pointing at the 1Password agent.
       - /run/host-services/ssh-auth.sock:/run/host-services/ssh-auth.sock
@@ -36,6 +40,8 @@ services:
       # AI CLI auth/config
       - ~/.claude:/home/vscode/.claude
       - ~/.codex:/home/vscode/.codex
+      # Azure pool2 credentials for Codex; source stays on host and mounts read-only
+      - ~/.azure/aoai-pool2.env:/home/vscode/.azure/aoai-pool2.env:ro
       - ~/.gemini:/home/vscode/.gemini
       # Git config: NOT mounted — set up in post-create.sh instead
       # Host gitconfig has core.hooksPath which conflicts with pre-commit install
@@ -52,6 +58,7 @@ services:
       - bladeai-history:/commandhistory
       - bladeai-uv-cache:/home/vscode/.cache/uv
     environment:
+      CODEX_HOME: /home/vscode/.codex/container-linux
       HOST_UID: "${HOST_UID:-1000}"
       HOST_GID: "${HOST_GID:-1000}"
       SSH_AUTH_SOCK: /run/host-services/ssh-auth.sock
@@ -68,7 +75,9 @@ services:
   git-sync:
     image: alpine/git:latest
     container_name: bladeai-git-sync
-    restart: unless-stopped
+    # [2026-08-24] 退役：由 machine-maintenance/sync/ws-sync.sh 取代
+    # 旧逻辑只 pull 不 push，且 dirty 就跳过，导致仓库常年拉不动
+    restart: "no"
     volumes:
       - ${WORKSPACE:-~/workspace}:/workspace
       - ~/.config/gh:/root/.config/gh:ro
