@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Gemini 4 Argon 命令行（Vertex AI / Gemini Enterprise Agent Platform, global endpoint）
 
-在 bladeai-dev 容器里运行：
-  docker exec -it bladeai-dev gosu vscode /workspace/.venv/bin/python /workspace/dev-env/sync/gemini-argon.py            # 多轮对话
-  docker exec bladeai-dev gosu vscode /workspace/.venv/bin/python /workspace/dev-env/sync/gemini-argon.py "你好"        # 单次提问
-  cat big.txt | docker exec -i bladeai-dev gosu vscode /workspace/.venv/bin/python /workspace/dev-env/sync/gemini-argon.py -   # 从 stdin 读（长上下文）
+在 bladeai-dev 容器里用隔离环境运行（不碰共享 /workspace/.venv，那里 google-genai 按 requirements-base.txt 锁在 1.x）：
+  ARGON="uv run -q --no-project --isolated --with 'google-genai>=2.30.1' python /workspace/dev-env/sync/gemini-argon.py"
+  docker exec -it bladeai-dev gosu vscode bash -lc "$ARGON"                  # 多轮对话
+  docker exec bladeai-dev gosu vscode bash -lc "$ARGON '你好'"               # 单次提问
+  cat big.txt | docker exec -i bladeai-dev gosu vscode bash -lc "$ARGON -"   # 从 stdin 读（长上下文）
 
 认证顺序：`gcloud auth print-access-token`（当前 gcloud 登录账号，1 小时有效）→ 回退到 ADC。
   gcloud 优先：在 GCE VM 上 ADC 会先拿到 VM 默认服务账号，通常没有 cloud-platform scope。
 --json：每次提问输出一行 JSON（含耗时与 token 用量），便于批量采集。
-依赖：google-genai >= 2.30.1（由 sync/setup-gemini-argon.sh 安装）。
+依赖：google-genai >= 2.30.1（由 uv --with 临时提供）。
 """
 import argparse
 import json
